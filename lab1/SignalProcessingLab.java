@@ -80,7 +80,7 @@ public class SignalProcessingLab {
         return signal;
     }
 
-    // Математические методы (сокращаем для читаемости)
+    // Математические методы
     public Complex[] dft(double[] signal) {
         int N = signal.length;
         Complex[] result = new Complex[N];
@@ -261,7 +261,7 @@ public class SignalProcessingLab {
                 BorderFactory.createEmptyBorder(12, 20, 12, 20)
         ));
 
-        JLabel titleLabel = new JLabel("Лабораторная работа №1: 24 графика с полноценной навигацией");
+        JLabel titleLabel = new JLabel("Лабораторная работа №1: 25 графика с полноценной навигацией");
         titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
         titleLabel.setForeground(DARK_BROWN);
 
@@ -410,6 +410,8 @@ public class SignalProcessingLab {
         tabbedPane.addTab("15-18. Свертка и корреляция", createOperationsTab());
         tabbedPane.addTab("19-22. БПФ (библиотека)", createLibraryFFTTab());
         tabbedPane.addTab("23-24. Операции (библиотека)", createLibraryOperationsTab());
+        // НОВАЯ ВКЛАДКА: ВСЕ 24 ГРАФИКА В КОМПАКТНОМ ВИДЕ
+        tabbedPane.addTab("25. Все графики (обзор)", createAllInOneTab());
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(LIGHT_BEIGE);
@@ -417,6 +419,257 @@ public class SignalProcessingLab {
         panel.add(tabbedPane, BorderLayout.CENTER);
 
         return panel;
+    }
+
+    // НОВЫЙ МЕТОД: СОЗДАНИЕ ВКЛАДКИ СО ВСЕМИ ГРАФИКАМИ В КОМПАКТНОМ ВИДЕ
+    private JPanel createAllInOneTab() {
+        JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
+        mainPanel.setBackground(LIGHT_BEIGE);
+
+        // Боковая панель с исходными данными (переиспользуем существующую панель)
+        JPanel sidePanel = createInputDataPanel();
+        mainPanel.add(sidePanel, BorderLayout.WEST);
+
+        // Создаем панель для всех графиков - более компактная
+        JPanel graphsPanel = new JPanel();
+        graphsPanel.setLayout(new GridLayout(6, 4, 5, 5)); // 6 строк, 4 колонки = 24 графика
+        graphsPanel.setBackground(LIGHT_BEIGE);
+        graphsPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
+        // Получаем все данные для графиков
+        Complex[] xDFT = dft(Arrays.copyOf(x, N));
+        double[] xIDFT = idft(xDFT);
+        Complex[] xFFT = fft(x);
+        double[] xIFFT = ifft(xFFT);
+        Complex[] yDFT = dft(Arrays.copyOf(y, N));
+        double[] yIDFT = idft(yDFT);
+        Complex[] yFFT = fft(y);
+        double[] yIFFT = ifft(yFFT);
+
+        double[] xShort = Arrays.copyOf(x, Math.min(512, N));
+        double[] yShort = Arrays.copyOf(y, Math.min(512, N));
+        double[] conv = convolution(xShort, yShort);
+        double[] convFFT = convolutionFFT(xShort, yShort);
+        double[] corr = correlation(xShort, yShort);
+        double[] corrFFT = correlationFFT(xShort, yShort);
+
+        // Добавляем все 24 графика в компактном виде
+        // 1. x(t)
+        graphsPanel.add(createMiniChartPanel(x, "1. x(t)", "Время, мс", "Амплитуда", FOREST_GREEN, true, false));
+
+        // 2. y(t)
+        graphsPanel.add(createMiniChartPanel(y, "2. y(t)", "Время, мс", "Амплитуда", TERRA_COTTA, true, false));
+
+        // 3. x(t) Амплитудный спектр (ДПФ)
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xDFT), "3. x ДПФ Амп",
+                "Частота, Гц", "Амплитуда", FOREST_GREEN, false, true));
+
+        // 4. x(t) Фазовый спектр (ДПФ)
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(xDFT), "4. x ДПФ Фаза",
+                "Частота, Гц", "Фаза, рад", SLATE_BLUE, false, true));
+
+        // 5. x(t) ОДПФ
+        graphsPanel.add(createMiniChartPanel(xIDFT, "5. x ОДПФ",
+                "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
+
+        // 6. x(t) Амплитудный спектр (БПФ)
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xFFT), "6. x БПФ Амп",
+                "Частота, Гц", "Амплитуда", FOREST_GREEN, false, true));
+
+        // 7. x(t) Фазовый спектр (БПФ)
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(xFFT), "7. x БПФ Фаза",
+                "Частота, Гц", "Фаза, рад", SLATE_BLUE, false, true));
+
+        // 8. x(t) ОБПФ
+        graphsPanel.add(createMiniChartPanel(Arrays.copyOf(xIFFT, N), "8. x ОБПФ",
+                "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
+
+        // 9. y(t) Амплитудный спектр (ДПФ)
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yDFT), "9. y ДПФ Амп",
+                "Частота, Гц", "Амплитуда", TERRA_COTTA, false, true));
+
+        // 10. y(t) Фазовый спектр (ДПФ)
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(yDFT), "10. y ДПФ Фаза",
+                "Частота, Гц", "Фаза, рад", DARK_SLATE, false, true));
+
+        // 11. y(t) ОДПФ
+        graphsPanel.add(createMiniChartPanel(yIDFT, "11. y ОДПФ",
+                "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
+
+        // 12. y(t) Амплитудный спектр (БПФ)
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yFFT), "12. y БПФ Амп",
+                "Частота, Гц", "Амплитуда", TERRA_COTTA, false, true));
+
+        // 13. y(t) Фазовый спектр (БПФ)
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(yFFT), "13. y БПФ Фаза",
+                "Частота, Гц", "Фаза, рад", DARK_SLATE, false, true));
+
+        // 14. y(t) ОБПФ
+        graphsPanel.add(createMiniChartPanel(Arrays.copyOf(yIFFT, N), "14. y ОБПФ",
+                "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
+
+        // 15. Свертка
+        graphsPanel.add(createMiniChartPanel(conv, "15. Свертка",
+                "Время, мс", "Амплитуда", FOREST_GREEN, true, false));
+
+        // 16. Свертка через БПФ
+        graphsPanel.add(createMiniChartPanel(convFFT, "16. Свертка FFT",
+                "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
+
+        // 17. Корреляция
+        graphsPanel.add(createMiniChartPanel(corr, "17. Корреляция",
+                "Время, мс", "Амплитуда", SLATE_BLUE, true, false));
+
+        // 18. Корреляция через БПФ
+        graphsPanel.add(createMiniChartPanel(corrFFT, "18. Корреляция FFT",
+                "Время, мс", "Амплитуда", DARK_SLATE, true, false));
+
+        // 19. x БПФ библиотека амп
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xFFT), "19. x БПФ библ Амп",
+                "Частота, Гц", "Амплитуда", FOREST_GREEN, false, true));
+
+        // 20. x БПФ библиотека фаза
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(xFFT), "20. x БПФ библ Фаза",
+                "Частота, Гц", "Фаза, рад", SLATE_BLUE, false, true));
+
+        // 21. y БПФ библиотека амп
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yFFT), "21. y БПФ библ Амп",
+                "Частота, Гц", "Амплитуда", TERRA_COTTA, false, true));
+
+        // 22. y БПФ библиотека фаза
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(yFFT), "22. y БПФ библ Фаза",
+                "Частота, Гц", "Фаза, рад", DARK_SLATE, false, true));
+
+        // 23. Свертка библиотека
+        graphsPanel.add(createMiniChartPanel(convFFT, "23. Свертка библ",
+                "Время, мс", "Амплитуда", FOREST_GREEN, true, false));
+
+        // 24. Корреляция библиотека
+        graphsPanel.add(createMiniChartPanel(corrFFT, "24. Корреляция библ",
+                "Время, мс", "Амплитуда", SLATE_BLUE, true, false));
+
+        mainPanel.add(graphsPanel, BorderLayout.CENTER);
+
+        // Информационная панель снизу
+        JPanel infoPanel = new JPanel(new BorderLayout());
+        infoPanel.setBackground(LIGHT_GRAY);
+        infoPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, MEDIUM_GRAY),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)
+        ));
+
+        JLabel infoLabel = new JLabel("Обзор всех 24 графиков • Колесо мыши для масштабирования • Двойной щелчок для сброса • Все графики видны без прокрутки");
+        infoLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+        infoLabel.setForeground(DARK_BROWN);
+        infoPanel.add(infoLabel, BorderLayout.CENTER);
+
+        mainPanel.add(infoPanel, BorderLayout.SOUTH);
+
+        return mainPanel;
+    }
+
+    // НОВЫЙ МЕТОД: СОЗДАНИЕ ОЧЕНЬ КОМПАКТНОГО ГРАФИКА
+    private JPanel createMiniChartPanel(double[] data, String title,
+                                        String xLabel, String yLabel,
+                                        Color color, boolean isTimeDomain, boolean isSpectrum) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(OFF_WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(MEDIUM_GRAY, 1),
+                BorderFactory.createEmptyBorder(3, 3, 3, 3)
+        ));
+
+        // Заголовок
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 8));
+        titleLabel.setForeground(DARK_BROWN);
+        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
+
+        // Создаем данные для графика
+        XYSeries series = new XYSeries("Данные");
+        double dt = isTimeDomain ? (1.0 / SAMPLE_RATE * 1000) : 1.0;
+        double scale = isSpectrum ? (SAMPLE_RATE / (double)data.length) : 1.0;
+
+        int displayLength = isSpectrum ? data.length / 2 : Math.min(data.length, 1000);
+        int step = Math.max(1, displayLength / 200); // Очень мало точек для супер-компактного вида
+
+        for (int i = 0; i < displayLength; i += step) {
+            double xValue = i * (isTimeDomain ? dt : scale);
+            double yValue = data[i];
+            series.add(xValue, yValue);
+        }
+
+        XYSeriesCollection dataset = new XYSeriesCollection();
+        dataset.addSeries(series);
+
+        // Создаем график без заголовка и легенды
+        JFreeChart chart = ChartFactory.createXYLineChart(
+                null,
+                null, // Без подписи оси X
+                null, // Без подписи оси Y
+                dataset,
+                PlotOrientation.VERTICAL,
+                false,
+                true,
+                false
+        );
+
+        applyMiniChartStyle(chart, color);
+
+        ChartPanel chartPanel = new ChartPanel(chart);
+        chartPanel.setBackground(CREAM);
+        chartPanel.setMouseWheelEnabled(true);
+        chartPanel.setRangeZoomable(true);
+        chartPanel.setDomainZoomable(true);
+        chartPanel.setDisplayToolTips(true);
+        chartPanel.setMinimumDrawWidth(0);
+        chartPanel.setMinimumDrawHeight(0);
+        chartPanel.setMaximumDrawWidth(Integer.MAX_VALUE);
+        chartPanel.setMaximumDrawHeight(Integer.MAX_VALUE);
+
+        panel.add(titleLabel, BorderLayout.NORTH);
+        panel.add(chartPanel, BorderLayout.CENTER);
+
+        // Устанавливаем фиксированный размер для всех графиков
+        panel.setPreferredSize(new Dimension(300, 180));
+        panel.setMinimumSize(new Dimension(300, 180));
+
+        return panel;
+    }
+
+    // НОВЫЙ МЕТОД: СТИЛЬ ДЛЯ МИНИ-ГРАФИКОВ
+    private void applyMiniChartStyle(JFreeChart chart, Color lineColor) {
+        XYPlot plot = chart.getXYPlot();
+
+        plot.setBackgroundPaint(CREAM);
+        plot.setDomainGridlinePaint(new Color(240, 240, 240));
+        plot.setRangeGridlinePaint(new Color(240, 240, 240));
+        plot.setDomainGridlineStroke(new BasicStroke(0.2f));
+        plot.setRangeGridlineStroke(new BasicStroke(0.2f));
+
+        XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, false);
+        renderer.setSeriesPaint(0, lineColor);
+        renderer.setSeriesStroke(0, new BasicStroke(0.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        plot.setRenderer(renderer);
+
+        plot.setOutlinePaint(MEDIUM_GRAY);
+        plot.setOutlineStroke(new BasicStroke(0.5f));
+
+        // Убираем или уменьшаем подписи осей
+        plot.getDomainAxis().setLabelFont(new Font("Arial", Font.PLAIN, 0));
+        plot.getDomainAxis().setTickLabelFont(new Font("Arial", Font.PLAIN, 0));
+        plot.getDomainAxis().setLabelPaint(new Color(0, 0, 0, 0));
+        plot.getDomainAxis().setTickLabelPaint(new Color(0, 0, 0, 0));
+        plot.getDomainAxis().setAxisLinePaint(new Color(0, 0, 0, 0));
+        plot.getDomainAxis().setTickMarkPaint(new Color(0, 0, 0, 0));
+
+        plot.getRangeAxis().setLabelFont(new Font("Arial", Font.PLAIN, 0));
+        plot.getRangeAxis().setTickLabelFont(new Font("Arial", Font.PLAIN, 0));
+        plot.getRangeAxis().setLabelPaint(new Color(0, 0, 0, 0));
+        plot.getRangeAxis().setTickLabelPaint(new Color(0, 0, 0, 0));
+        plot.getRangeAxis().setAxisLinePaint(new Color(0, 0, 0, 0));
+        plot.getRangeAxis().setTickMarkPaint(new Color(0, 0, 0, 0));
     }
 
     private JPanel createSignalsTab() {
