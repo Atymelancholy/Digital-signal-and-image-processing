@@ -426,10 +426,6 @@ public class SignalProcessingLab {
         JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
         mainPanel.setBackground(LIGHT_BEIGE);
 
-        // Боковая панель с исходными данными (переиспользуем существующую панель)
-        JPanel sidePanel = createInputDataPanel();
-        mainPanel.add(sidePanel, BorderLayout.WEST);
-
         // Создаем панель для всех графиков - более компактная
         JPanel graphsPanel = new JPanel();
         graphsPanel.setLayout(new GridLayout(6, 4, 5, 5)); // 6 строк, 4 колонки = 24 графика
