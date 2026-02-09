@@ -16,7 +16,6 @@ import java.awt.*;
 import java.util.Arrays;
 
 public class SignalProcessingLab {
-    // Параметры сигналов
     private static final double[] A_x = {1.0, 0.8, 0.5};
     private static final double f0_x = 65.0;
     private static final int[] h_x = {1, 2, 3};
@@ -32,14 +31,12 @@ public class SignalProcessingLab {
     private static final int N = (int)(DURATION * SAMPLE_RATE);
     private static final int FFT_SIZE = nextPowerOfTwo(N);
 
-    // Цветовая схема
     private static final Color LIGHT_BEIGE = new Color(250, 245, 238);
     private static final Color OFF_WHITE = new Color(252, 250, 245);
     private static final Color CREAM = new Color(255, 253, 248);
     private static final Color LIGHT_GRAY = new Color(240, 238, 235);
     private static final Color MEDIUM_GRAY = new Color(180, 175, 170);
 
-    // Цвета для текста
     private static final Color DARK_BROWN = new Color(70, 50, 30);
     private static final Color WARM_GRAY = new Color(100, 90, 80);
     private static final Color FOREST_GREEN = new Color(45, 100, 45);
@@ -80,7 +77,6 @@ public class SignalProcessingLab {
         return signal;
     }
 
-    // Математические методы
     public Complex[] dft(double[] signal) {
         int N = signal.length;
         Complex[] result = new Complex[N];
@@ -410,7 +406,6 @@ public class SignalProcessingLab {
         tabbedPane.addTab("15-18. Свертка и корреляция", createOperationsTab());
         tabbedPane.addTab("19-22. БПФ (библиотека)", createLibraryFFTTab());
         tabbedPane.addTab("23-24. Операции (библиотека)", createLibraryOperationsTab());
-        // НОВАЯ ВКЛАДКА: ВСЕ 24 ГРАФИКА В КОМПАКТНОМ ВИДЕ
         tabbedPane.addTab("25. Все графики (обзор)", createAllInOneTab());
 
         JPanel panel = new JPanel(new BorderLayout());
@@ -421,22 +416,15 @@ public class SignalProcessingLab {
         return panel;
     }
 
-    // НОВЫЙ МЕТОД: СОЗДАНИЕ ВКЛАДКИ СО ВСЕМИ ГРАФИКАМИ В КОМПАКТНОМ ВИДЕ
     private JPanel createAllInOneTab() {
         JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
         mainPanel.setBackground(LIGHT_BEIGE);
 
-        // Боковая панель с исходными данными (переиспользуем существующую панель)
-        JPanel sidePanel = createInputDataPanel();
-        mainPanel.add(sidePanel, BorderLayout.WEST);
-
-        // Создаем панель для всех графиков - более компактная
         JPanel graphsPanel = new JPanel();
         graphsPanel.setLayout(new GridLayout(6, 4, 5, 5)); // 6 строк, 4 колонки = 24 графика
         graphsPanel.setBackground(LIGHT_BEIGE);
         graphsPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // Получаем все данные для графиков
         Complex[] xDFT = dft(Arrays.copyOf(x, N));
         double[] xIDFT = idft(xDFT);
         Complex[] xFFT = fft(x);
@@ -453,104 +441,78 @@ public class SignalProcessingLab {
         double[] corr = correlation(xShort, yShort);
         double[] corrFFT = correlationFFT(xShort, yShort);
 
-        // Добавляем все 24 графика в компактном виде
-        // 1. x(t)
         graphsPanel.add(createMiniChartPanel(x, "1. x(t)", "Время, мс", "Амплитуда", FOREST_GREEN, true, false));
 
-        // 2. y(t)
         graphsPanel.add(createMiniChartPanel(y, "2. y(t)", "Время, мс", "Амплитуда", TERRA_COTTA, true, false));
 
-        // 3. x(t) Амплитудный спектр (ДПФ)
         graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xDFT), "3. x ДПФ Амп",
                 "Частота, Гц", "Амплитуда", FOREST_GREEN, false, true));
 
-        // 4. x(t) Фазовый спектр (ДПФ)
         graphsPanel.add(createMiniChartPanel(phaseSpectrum(xDFT), "4. x ДПФ Фаза",
                 "Частота, Гц", "Фаза, рад", SLATE_BLUE, false, true));
 
-        // 5. x(t) ОДПФ
         graphsPanel.add(createMiniChartPanel(xIDFT, "5. x ОДПФ",
                 "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
 
-        // 6. x(t) Амплитудный спектр (БПФ)
         graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xFFT), "6. x БПФ Амп",
                 "Частота, Гц", "Амплитуда", FOREST_GREEN, false, true));
 
-        // 7. x(t) Фазовый спектр (БПФ)
         graphsPanel.add(createMiniChartPanel(phaseSpectrum(xFFT), "7. x БПФ Фаза",
                 "Частота, Гц", "Фаза, рад", SLATE_BLUE, false, true));
 
-        // 8. x(t) ОБПФ
         graphsPanel.add(createMiniChartPanel(Arrays.copyOf(xIFFT, N), "8. x ОБПФ",
                 "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
 
-        // 9. y(t) Амплитудный спектр (ДПФ)
         graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yDFT), "9. y ДПФ Амп",
                 "Частота, Гц", "Амплитуда", TERRA_COTTA, false, true));
 
-        // 10. y(t) Фазовый спектр (ДПФ)
         graphsPanel.add(createMiniChartPanel(phaseSpectrum(yDFT), "10. y ДПФ Фаза",
                 "Частота, Гц", "Фаза, рад", DARK_SLATE, false, true));
 
-        // 11. y(t) ОДПФ
         graphsPanel.add(createMiniChartPanel(yIDFT, "11. y ОДПФ",
                 "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
 
-        // 12. y(t) Амплитудный спектр (БПФ)
         graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yFFT), "12. y БПФ Амп",
                 "Частота, Гц", "Амплитуда", TERRA_COTTA, false, true));
 
-        // 13. y(t) Фазовый спектр (БПФ)
         graphsPanel.add(createMiniChartPanel(phaseSpectrum(yFFT), "13. y БПФ Фаза",
                 "Частота, Гц", "Фаза, рад", DARK_SLATE, false, true));
 
-        // 14. y(t) ОБПФ
         graphsPanel.add(createMiniChartPanel(Arrays.copyOf(yIFFT, N), "14. y ОБПФ",
                 "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
 
-        // 15. Свертка
         graphsPanel.add(createMiniChartPanel(conv, "15. Свертка",
                 "Время, мс", "Амплитуда", FOREST_GREEN, true, false));
 
-        // 16. Свертка через БПФ
         graphsPanel.add(createMiniChartPanel(convFFT, "16. Свертка FFT",
                 "Время, мс", "Амплитуда", EARTH_GREEN, true, false));
 
-        // 17. Корреляция
         graphsPanel.add(createMiniChartPanel(corr, "17. Корреляция",
                 "Время, мс", "Амплитуда", SLATE_BLUE, true, false));
 
-        // 18. Корреляция через БПФ
         graphsPanel.add(createMiniChartPanel(corrFFT, "18. Корреляция FFT",
                 "Время, мс", "Амплитуда", DARK_SLATE, true, false));
 
-        // 19. x БПФ библиотека амп
         graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xFFT), "19. x БПФ библ Амп",
                 "Частота, Гц", "Амплитуда", FOREST_GREEN, false, true));
 
-        // 20. x БПФ библиотека фаза
         graphsPanel.add(createMiniChartPanel(phaseSpectrum(xFFT), "20. x БПФ библ Фаза",
                 "Частота, Гц", "Фаза, рад", SLATE_BLUE, false, true));
 
-        // 21. y БПФ библиотека амп
         graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yFFT), "21. y БПФ библ Амп",
                 "Частота, Гц", "Амплитуда", TERRA_COTTA, false, true));
 
-        // 22. y БПФ библиотека фаза
         graphsPanel.add(createMiniChartPanel(phaseSpectrum(yFFT), "22. y БПФ библ Фаза",
                 "Частота, Гц", "Фаза, рад", DARK_SLATE, false, true));
 
-        // 23. Свертка библиотека
         graphsPanel.add(createMiniChartPanel(convFFT, "23. Свертка библ",
                 "Время, мс", "Амплитуда", FOREST_GREEN, true, false));
 
-        // 24. Корреляция библиотека
         graphsPanel.add(createMiniChartPanel(corrFFT, "24. Корреляция библ",
                 "Время, мс", "Амплитуда", SLATE_BLUE, true, false));
 
         mainPanel.add(graphsPanel, BorderLayout.CENTER);
 
-        // Информационная панель снизу
         JPanel infoPanel = new JPanel(new BorderLayout());
         infoPanel.setBackground(LIGHT_GRAY);
         infoPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -568,7 +530,6 @@ public class SignalProcessingLab {
         return mainPanel;
     }
 
-    // НОВЫЙ МЕТОД: СОЗДАНИЕ ОЧЕНЬ КОМПАКТНОГО ГРАФИКА
     private JPanel createMiniChartPanel(double[] data, String title,
                                         String xLabel, String yLabel,
                                         Color color, boolean isTimeDomain, boolean isSpectrum) {
@@ -579,20 +540,18 @@ public class SignalProcessingLab {
                 BorderFactory.createEmptyBorder(3, 3, 3, 3)
         ));
 
-        // Заголовок
         JLabel titleLabel = new JLabel(title);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 8));
         titleLabel.setForeground(DARK_BROWN);
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
         titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
 
-        // Создаем данные для графика
         XYSeries series = new XYSeries("Данные");
         double dt = isTimeDomain ? (1.0 / SAMPLE_RATE * 1000) : 1.0;
         double scale = isSpectrum ? (SAMPLE_RATE / (double)data.length) : 1.0;
 
         int displayLength = isSpectrum ? data.length / 2 : Math.min(data.length, 1000);
-        int step = Math.max(1, displayLength / 200); // Очень мало точек для супер-компактного вида
+        int step = Math.max(1, displayLength / 200);
 
         for (int i = 0; i < displayLength; i += step) {
             double xValue = i * (isTimeDomain ? dt : scale);
@@ -603,11 +562,10 @@ public class SignalProcessingLab {
         XYSeriesCollection dataset = new XYSeriesCollection();
         dataset.addSeries(series);
 
-        // Создаем график без заголовка и легенды
         JFreeChart chart = ChartFactory.createXYLineChart(
                 null,
-                null, // Без подписи оси X
-                null, // Без подписи оси Y
+                null,
+                null,
                 dataset,
                 PlotOrientation.VERTICAL,
                 false,
@@ -631,14 +589,12 @@ public class SignalProcessingLab {
         panel.add(titleLabel, BorderLayout.NORTH);
         panel.add(chartPanel, BorderLayout.CENTER);
 
-        // Устанавливаем фиксированный размер для всех графиков
         panel.setPreferredSize(new Dimension(300, 180));
         panel.setMinimumSize(new Dimension(300, 180));
 
         return panel;
     }
 
-    // НОВЫЙ МЕТОД: СТИЛЬ ДЛЯ МИНИ-ГРАФИКОВ
     private void applyMiniChartStyle(JFreeChart chart, Color lineColor) {
         XYPlot plot = chart.getXYPlot();
 
@@ -656,7 +612,6 @@ public class SignalProcessingLab {
         plot.setOutlinePaint(MEDIUM_GRAY);
         plot.setOutlineStroke(new BasicStroke(0.5f));
 
-        // Убираем или уменьшаем подписи осей
         plot.getDomainAxis().setLabelFont(new Font("Arial", Font.PLAIN, 0));
         plot.getDomainAxis().setTickLabelFont(new Font("Arial", Font.PLAIN, 0));
         plot.getDomainAxis().setLabelPaint(new Color(0, 0, 0, 0));
@@ -869,20 +824,17 @@ public class SignalProcessingLab {
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)
         ));
 
-        // Заголовок графика
         JLabel chartTitle = new JLabel(title);
         chartTitle.setFont(new Font("Arial", Font.BOLD, 11));
         chartTitle.setForeground(DARK_BROWN);
         chartTitle.setBorder(BorderFactory.createEmptyBorder(0, 5, 5, 5));
 
-        // Создаем график с ВСЕМИ данными
         XYSeries fullSeries = new XYSeries("Данные");
         double dt = isTimeDomain ? (1.0 / SAMPLE_RATE * 1000) : 1.0;
         double scale = isSpectrum ? (SAMPLE_RATE / (double)data.length) : 1.0;
 
-        // Для спектров показываем только половину (до частоты Найквиста)
         int displayLength = isSpectrum ? data.length / 2 : data.length;
-        int step = Math.max(1, displayLength / 2000); // Увеличиваем количество точек для гладкости
+        int step = Math.max(1, displayLength / 2000);
 
         for (int i = 0; i < displayLength; i += step) {
             double xValue = i * (isTimeDomain ? dt : scale);
@@ -906,7 +858,6 @@ public class SignalProcessingLab {
 
         applyChartStyle(fullChart, color);
 
-        // Создаем ChartPanel для полного графика
         ChartPanel fullChartPanel = new ChartPanel(fullChart);
         fullChartPanel.setBackground(CREAM);
         fullChartPanel.setMouseWheelEnabled(true);
@@ -914,11 +865,9 @@ public class SignalProcessingLab {
         fullChartPanel.setDomainZoomable(true);
         fullChartPanel.setDisplayToolTips(true);
 
-        // Создаем панель с управлением
         JPanel controlPanel = createNavigationControlPanel(fullChartPanel, displayLength,
                 isTimeDomain ? "отсчетов" : "точек");
 
-        // Собираем всё вместе
         mainPanel.add(chartTitle, BorderLayout.NORTH);
         mainPanel.add(fullChartPanel, BorderLayout.CENTER);
         mainPanel.add(controlPanel, BorderLayout.SOUTH);
@@ -931,7 +880,6 @@ public class SignalProcessingLab {
         panel.setBackground(LIGHT_GRAY);
         panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // Панель с кнопками масштабирования
         JPanel zoomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
         zoomPanel.setBackground(LIGHT_GRAY);
 
@@ -941,7 +889,6 @@ public class SignalProcessingLab {
         JButton leftBtn = createSmallButton("←", "Сдвинуть влево");
         JButton rightBtn = createSmallButton("→", "Сдвинуть вправо");
 
-        // Обработчики для кнопок
         zoomInBtn.addActionListener(e -> chartPanel.zoomInBoth(1.5, 1.5));
         zoomOutBtn.addActionListener(e -> chartPanel.zoomOutBoth(1.5, 1.5));
         resetBtn.addActionListener(e -> chartPanel.restoreAutoBounds());
@@ -957,7 +904,6 @@ public class SignalProcessingLab {
         zoomPanel.add(leftBtn);
         zoomPanel.add(rightBtn);
 
-        // Ползунок для навигации по увеличенному графику
         JSlider positionSlider = new JSlider(0, 100, 0);
         positionSlider.setBackground(LIGHT_GRAY);
         positionSlider.setForeground(DARK_BROWN);
@@ -967,34 +913,28 @@ public class SignalProcessingLab {
         positionSlider.setMajorTickSpacing(25);
         positionSlider.setFont(new Font("Arial", Font.PLAIN, 8));
 
-        // Добавляем подсказку к ползунку
         positionSlider.setToolTipText("Перемещайте ползунок для навигации по увеличенному графику");
 
-        // Обработчик для ползунка - перемещаем видимую область графика
         positionSlider.addChangeListener(new ChangeListener() {
             @Override
             public void stateChanged(ChangeEvent e) {
                 if (!positionSlider.getValueIsAdjusting()) {
-                    // Получаем текущие границы отображения
                     XYPlot plot = chartPanel.getChart().getXYPlot();
                     double range = plot.getDomainAxis().getRange().getLength();
                     double min = plot.getDomainAxis().getLowerBound();
                     double max = plot.getDomainAxis().getUpperBound();
 
-                    // Вычисляем новую позицию
                     double totalRange = plot.getDomainAxis().getRange().getUpperBound() -
                             plot.getDomainAxis().getRange().getLowerBound();
                     double percent = positionSlider.getValue() / 100.0;
                     double newMin = percent * (totalRange - range);
                     double newMax = newMin + range;
 
-                    // Устанавливаем новые границы
                     plot.getDomainAxis().setRange(newMin, newMax);
                 }
             }
         });
 
-        // Кнопка для центрирования на текущей позиции
         JButton centerBtn = createSmallButton("◎", "Центрировать");
         centerBtn.addActionListener(e -> {
             XYPlot plot = chartPanel.getChart().getXYPlot();
