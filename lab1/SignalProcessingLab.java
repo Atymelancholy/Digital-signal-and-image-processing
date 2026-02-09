@@ -421,7 +421,7 @@ public class SignalProcessingLab {
         mainPanel.setBackground(LIGHT_BEIGE);
 
         JPanel graphsPanel = new JPanel();
-        graphsPanel.setLayout(new GridLayout(6, 4, 5, 5)); // 6 строк, 4 колонки = 24 графика
+        graphsPanel.setLayout(new GridLayout(6, 4, 5, 5)); 
         graphsPanel.setBackground(LIGHT_BEIGE);
         graphsPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
