@@ -8,7 +8,6 @@ import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
-import org.jtransforms.fft.DoubleFFT_1D;
 
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
@@ -32,7 +31,6 @@ public class SignalProcessingLab {
     private static final int SAMPLE_RATE = 44100;
     private static final int N = (int)(DURATION * SAMPLE_RATE);
     private static final int FFT_SIZE = nextPowerOfTwo(N);
-    private static final int SPEC_N = 512;
 
     // Цветовая схема
     private static final Color LIGHT_BEIGE = new Color(250, 245, 238);
@@ -93,7 +91,7 @@ public class SignalProcessingLab {
                 real += signal[n] * Math.cos(angle);
                 imag += signal[n] * Math.sin(angle);
             }
-            result[k] = new Complex(real, imag);
+            result[k] = new Complex(real / N, imag / N);
         }
         return result;
     }
@@ -107,7 +105,7 @@ public class SignalProcessingLab {
                 double angle = 2 * Math.PI * k * n / N;
                 real += spectrum[k].re() * Math.cos(angle) - spectrum[k].im() * Math.sin(angle);
             }
-            result[n] = real / N;
+            result[n] = real;
         }
         return result;
     }
@@ -124,36 +122,24 @@ public class SignalProcessingLab {
         return fftDit(x);
     }
 
-    public Complex[] fftLibrary(double[] signal) {
-        int N = signal.length;
-        double[] data = new double[2 * N]; // Re, Im
-        for (int i = 0; i < N; i++) {
-            data[2 * i] = signal[i];
-            data[2 * i + 1] = 0.0;
-        }
-        DoubleFFT_1D fft = new DoubleFFT_1D(N);
-        fft.complexForward(data);
-        Complex[] result = new Complex[N];
-        for (int i = 0; i < N; i++) {
-            result[i] = new Complex(data[2 * i], data[2 * i + 1]);
-        }
-        return result;
-    }
-
     private Complex[] fftDit(Complex[] x) {
         int N = x.length;
         if (N == 1) return new Complex[]{x[0]};
+
         Complex[] even = new Complex[N/2];
         Complex[] odd = new Complex[N/2];
         for (int k = 0; k < N/2; k++) {
             even[k] = x[2*k];
             odd[k] = x[2*k + 1];
         }
+
         Complex[] evenFFT = fftDit(even);
         Complex[] oddFFT = fftDit(odd);
+
         Complex[] result = new Complex[N];
         Complex wN = new Complex(Math.cos(-2*Math.PI/N), Math.sin(-2*Math.PI/N));
         Complex w = new Complex(1, 0);
+
         for (int k = 0; k < N/2; k++) {
             Complex t = w.multiply(oddFFT[k]);
             result[k] = evenFFT[k].add(t);
@@ -175,22 +161,6 @@ public class SignalProcessingLab {
             output[i] = result[i].conjugate().re() / N;
         }
         return output;
-    }
-
-    public double[] ifftLibrary(Complex[] spectrum) {
-        int N = spectrum.length;
-        double[] data = new double[2 * N];
-        for (int i = 0; i < N; i++) {
-            data[2 * i] = spectrum[i].re();
-            data[2 * i + 1] = spectrum[i].im();
-        }
-        DoubleFFT_1D fft = new DoubleFFT_1D(N);
-        fft.complexInverse(data, true); // true = деление на N
-        double[] result = new double[N];
-        for (int i = 0; i < N; i++) {
-            result[i] = data[2 * i];
-        }
-        return result;
     }
 
     public double[] convolution(double[] a, double[] b) {
@@ -224,44 +194,24 @@ public class SignalProcessingLab {
         return Arrays.copyOf(result, a.length + b.length - 1);
     }
 
-    public double[] convolutionFFTLibrary(double[] a, double[] b) {
-        int full = a.length + b.length - 1;
-        int size = 1;
-        while (size < full) size <<= 1;
-        double[] aPad = Arrays.copyOf(a, size);
-        double[] bPad = Arrays.copyOf(b, size);
-        Complex[] A = fftLibrary(aPad);
-        Complex[] B = fftLibrary(bPad);
-        Complex[] Z = new Complex[size];
-        for (int i = 0; i < size; i++) {
-            Z[i] = A[i].multiply(B[i]);
-        }
-        return Arrays.copyOf(ifftLibrary(Z), full);
-    }
-
     public double[] correlation(double[] a, double[] b) {
         int M = a.length, N = b.length;
-        int size = M + N - 1;
-        double[] r = new double[size];
-        for (int n = 0; n < size; n++) {
-            int lag = n - (N - 1);      // лаг m
-            double sum = 0.0;
+        int resultSize = M + N - 1;
+        double[] result = new double[resultSize];
+        for (int n = 0; n < resultSize; n++) {
+            double sum = 0;
             for (int k = 0; k < M; k++) {
-                int j = k + lag;
-                if (j >= 0 && j < N) {
-                    sum += a[k] * b[j];
-                }
+                int idx = n + k;
+                if (idx >= 0 && idx < N) sum += a[k] * b[idx];
             }
-            r[n] = sum;
+            result[n] = sum;
         }
-        return r;
+        return result;
     }
 
     public double[] correlationFFT(double[] a, double[] b) {
-        int M = a.length, N = b.length;
-        int full = M + N - 1;
         int size = 1;
-        while (size < full) size <<= 1;
+        while (size < a.length + b.length - 1) size *= 2;
         double[] aPadded = Arrays.copyOf(a, size);
         double[] bPadded = Arrays.copyOf(b, size);
         Complex[] fftA = fft(aPadded);
@@ -270,35 +220,8 @@ public class SignalProcessingLab {
         for (int i = 0; i < size; i++) {
             product[i] = fftA[i].conjugate().multiply(fftB[i]);
         }
-        double[] circ = ifft(product);
-        double[] lin = Arrays.copyOf(circ, full);
-        double[] r = new double[full];
-        int neg = N - 1;
-        System.arraycopy(lin, full - neg, r, 0, neg);
-        System.arraycopy(lin, 0, r, neg, M);
-        return r;
-    }
-
-    public double[] correlationFFTLibrary(double[] a, double[] b) {
-        int M = a.length, N = b.length;
-        int full = M + N - 1;
-        int size = 1;
-        while (size < full) size <<= 1;
-        double[] aPad = Arrays.copyOf(a, size);
-        double[] bPad = Arrays.copyOf(b, size);
-        Complex[] A = fftLibrary(aPad);
-        Complex[] B = fftLibrary(bPad);
-        Complex[] Z = new Complex[size];
-        for (int i = 0; i < size; i++) {
-            Z[i] = A[i].conjugate().multiply(B[i]); // строго по теореме
-        }
-        double[] circ = ifftLibrary(Z);
-        double[] lin = Arrays.copyOf(circ, full);
-        double[] r = new double[full];
-        int neg = N - 1;
-        System.arraycopy(lin, full - neg, r, 0, neg);
-        System.arraycopy(lin, 0, r, neg, M);
-        return r;
+        double[] result = ifft(product);
+        return Arrays.copyOf(result, a.length + b.length - 1);
     }
 
     public double[] amplitudeSpectrum(Complex[] spectrum) {
@@ -487,6 +410,7 @@ public class SignalProcessingLab {
         tabbedPane.addTab("15-18. Свертка и корреляция", createOperationsTab());
         tabbedPane.addTab("19-22. БПФ (библиотека)", createLibraryFFTTab());
         tabbedPane.addTab("23-24. Операции (библиотека)", createLibraryOperationsTab());
+        // НОВАЯ ВКЛАДКА: ВСЕ 24 ГРАФИКА В КОМПАКТНОМ ВИДЕ
         tabbedPane.addTab("25. Все графики (обзор)", createAllInOneTab());
 
         JPanel panel = new JPanel(new BorderLayout());
@@ -518,18 +442,12 @@ public class SignalProcessingLab {
         Complex[] yFFT = fft(y);
         double[] yIFFT = ifft(yFFT);
 
-        Complex[] xFFTLib = fftLibrary(x);
-        Complex[] yFFTLib = fftLibrary(y);
-
         double[] xShort = Arrays.copyOf(x, Math.min(512, N));
         double[] yShort = Arrays.copyOf(y, Math.min(512, N));
         double[] conv = convolution(xShort, yShort);
         double[] convFFT = convolutionFFT(xShort, yShort);
         double[] corr = correlation(xShort, yShort);
         double[] corrFFT = correlationFFT(xShort, yShort);
-
-        double[] convFFTLib = convolutionFFTLibrary(xShort, yShort);
-        double[] corrFFTLib = correlationFFTLibrary(xShort, yShort);
 
         // Добавляем все 24 графика в компактном виде
         // 1. x(t)
@@ -603,27 +521,27 @@ public class SignalProcessingLab {
                 "Время, мс", "Амплитуда", DARK_SLATE, true, false));
 
         // 19. x БПФ библиотека амп
-        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xFFTLib), "19. x БПФ библ Амп",
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(xFFT), "19. x БПФ библ Амп",
                 "Частота, Гц", "Амплитуда", FOREST_GREEN, false, true));
 
         // 20. x БПФ библиотека фаза
-        graphsPanel.add(createMiniChartPanel(phaseSpectrum(xFFTLib), "20. x БПФ библ Фаза",
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(xFFT), "20. x БПФ библ Фаза",
                 "Частота, Гц", "Фаза, рад", SLATE_BLUE, false, true));
 
         // 21. y БПФ библиотека амп
-        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yFFTLib), "21. y БПФ библ Амп",
+        graphsPanel.add(createMiniChartPanel(amplitudeSpectrum(yFFT), "21. y БПФ библ Амп",
                 "Частота, Гц", "Амплитуда", TERRA_COTTA, false, true));
 
         // 22. y БПФ библиотека фаза
-        graphsPanel.add(createMiniChartPanel(phaseSpectrum(yFFTLib), "22. y БПФ библ Фаза",
+        graphsPanel.add(createMiniChartPanel(phaseSpectrum(yFFT), "22. y БПФ библ Фаза",
                 "Частота, Гц", "Фаза, рад", DARK_SLATE, false, true));
 
         // 23. Свертка библиотека
-        graphsPanel.add(createMiniChartPanel(convFFTLib, "23. Свертка библ",
+        graphsPanel.add(createMiniChartPanel(convFFT, "23. Свертка библ",
                 "Время, мс", "Амплитуда", FOREST_GREEN, true, false));
 
         // 24. Корреляция библиотека
-        graphsPanel.add(createMiniChartPanel(corrFFTLib, "24. Корреляция библ",
+        graphsPanel.add(createMiniChartPanel(corrFFT, "24. Корреляция библ",
                 "Время, мс", "Амплитуда", SLATE_BLUE, true, false));
 
         mainPanel.add(graphsPanel, BorderLayout.CENTER);
@@ -669,7 +587,7 @@ public class SignalProcessingLab {
         double dt = isTimeDomain ? (1.0 / SAMPLE_RATE * 1000) : 1.0;
         double scale = isSpectrum ? (SAMPLE_RATE / (double)data.length) : 1.0;
 
-        int displayLength = isSpectrum ? data.length / 2 : data.length;
+        int displayLength = isSpectrum ? data.length / 2 : Math.min(data.length, 1000);
         int step = Math.max(1, displayLength / 200); // Очень мало точек для супер-компактного вида
 
         for (int i = 0; i < displayLength; i += step) {
@@ -769,7 +687,7 @@ public class SignalProcessingLab {
         panel.setBackground(LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        Complex[] xDFT = dft(x);
+        Complex[] xDFT = dft(Arrays.copyOf(x, N));
         double[] xIDFT = idft(xDFT);
 
         panel.add(createDynamicChartPanel(amplitudeSpectrum(xDFT),
@@ -780,7 +698,7 @@ public class SignalProcessingLab {
                 "4. x(t): Фазовый спектр (ДПФ)", "Частота, Гц", "Фаза, рад",
                 SLATE_BLUE, false, true));
 
-        panel.add(createDynamicChartPanel(Arrays.copyOf(xIDFT, N),
+        panel.add(createDynamicChartPanel(xIDFT,
                 "5. x(t): ОДПФ", "Время, мс", "Амплитуда",
                 EARTH_GREEN, true, false));
 
@@ -797,7 +715,7 @@ public class SignalProcessingLab {
 
         panel.add(createDynamicChartPanel(amplitudeSpectrum(xFFT),
                 "6. x(t): Амплитудный спектр (БПФ)", "Частота, Гц", "Амплитуда",
-                FOREST_GREEN, false, true ));
+                FOREST_GREEN, false, true));
 
         panel.add(createDynamicChartPanel(phaseSpectrum(xFFT),
                 "7. x(t): Фазовый спектр (БПФ)", "Частота, Гц", "Фаза, рад",
@@ -815,7 +733,7 @@ public class SignalProcessingLab {
         panel.setBackground(LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        Complex[] yDFT = dft(y);
+        Complex[] yDFT = dft(Arrays.copyOf(y, N));
         double[] yIDFT = idft(yDFT);
 
         panel.add(createDynamicChartPanel(amplitudeSpectrum(yDFT),
@@ -826,7 +744,7 @@ public class SignalProcessingLab {
                 "10. y(t): Фазовый спектр (ДПФ)", "Частота, Гц", "Фаза, рад",
                 DARK_SLATE, false, true));
 
-        panel.add(createDynamicChartPanel(Arrays.copyOf(yIDFT, N),
+        panel.add(createDynamicChartPanel(yIDFT,
                 "11. y(t): ОДПФ", "Время, мс", "Амплитуда",
                 EARTH_GREEN, true, false));
 
@@ -893,8 +811,8 @@ public class SignalProcessingLab {
         panel.setBackground(LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        Complex[] xFFT = fftLibrary(x);
-        Complex[] yFFT = fftLibrary(y);
+        Complex[] xFFT = fft(x);
+        Complex[] yFFT = fft(y);
 
         panel.add(createDynamicChartPanel(amplitudeSpectrum(xFFT),
                 "19. x(t): БПФ амплитудный (библиотека)", "Частота, Гц", "Амплитуда",
@@ -923,8 +841,8 @@ public class SignalProcessingLab {
         double[] xShort = Arrays.copyOf(x, Math.min(512, N));
         double[] yShort = Arrays.copyOf(y, Math.min(512, N));
 
-        double[] convFFT = convolutionFFTLibrary(xShort, yShort);
-        double[] corrFFT = correlationFFTLibrary(xShort, yShort);
+        double[] convFFT = convolutionFFT(xShort, yShort);
+        double[] corrFFT = correlationFFT(xShort, yShort);
 
         panel.add(createDynamicChartPanel(convFFT,
                 "23. Свертка (библиотека)", "Время, мс", "Амплитуда",
@@ -937,25 +855,6 @@ public class SignalProcessingLab {
         return panel;
     }
 
-   // public double[] phaseSpectrumMasked(Complex[] spectrum, double relThreshold) {
-   //     // relThreshold = 0.01 означает: показываем фазу только там,
-   //     // где амплитуда >= 1% от максимальной
-   //     double[] phases = new double[spectrum.length];
-//
-   //     double maxAmp = 0.0;
-   //     for (Complex c : spectrum) {
-   //         double a = c.abs();
-   //         if (a > maxAmp) maxAmp = a;
-   //     }
-   //     double eps = maxAmp * relThreshold;
-//
-   //     for (int i = 0; i < spectrum.length; i++) {
-   //         double amp = spectrum[i].abs();
-   //         phases[i] = (amp < eps) ? Double.NaN : spectrum[i].phase();
-   //     }
-   //     return phases;
-   // }
-
     private JPanel createDynamicChartPanel(double[] data, String title,
                                            String xLabel, String yLabel,
                                            Color color, boolean isTimeDomain, boolean isSpectrum) {
@@ -966,10 +865,6 @@ public class SignalProcessingLab {
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)
         ));
 
-        boolean isPhasePlot =
-                (yLabel != null && yLabel.toLowerCase().contains("фаза")) ||
-                        (title  != null && title.toLowerCase().contains("фаз"));
-
         // Заголовок графика
         JLabel chartTitle = new JLabel(title);
         chartTitle.setFont(new Font("Arial", Font.BOLD, 11));
@@ -979,23 +874,16 @@ public class SignalProcessingLab {
         // Создаем график с ВСЕМИ данными
         XYSeries fullSeries = new XYSeries("Данные");
         double dt = isTimeDomain ? (1.0 / SAMPLE_RATE * 1000) : 1.0;
-        double scale = isSpectrum ? (SAMPLE_RATE / (double) data.length) : 1.0;
+        double scale = isSpectrum ? (SAMPLE_RATE / (double)data.length) : 1.0;
 
         // Для спектров показываем только половину (до частоты Найквиста)
-
         int displayLength = isSpectrum ? data.length / 2 : data.length;
-
-        int step = 1;
-        if (!isPhasePlot) {
-            step = Math.max(1, displayLength / 2000);
-        }
+        int step = Math.max(1, displayLength / 2000); // Увеличиваем количество точек для гладкости
 
         for (int i = 0; i < displayLength; i += step) {
             double xValue = i * (isTimeDomain ? dt : scale);
             double yValue = data[i];
-            if (!Double.isNaN(yValue) && !Double.isInfinite(yValue)) {
-                fullSeries.add(xValue, yValue);
-            }
+            fullSeries.add(xValue, yValue);
         }
 
         XYSeriesCollection fullDataset = new XYSeriesCollection();
@@ -1012,11 +900,7 @@ public class SignalProcessingLab {
                 false
         );
 
-        if (isPhasePlot) {
-            applyScatterStyle(fullChart, color);   // стиль как у всех, но точки
-        } else {
-            applyChartStyle(fullChart, color);
-        }
+        applyChartStyle(fullChart, color);
 
         // Создаем ChartPanel для полного графика
         ChartPanel fullChartPanel = new ChartPanel(fullChart);
@@ -1116,13 +1000,7 @@ public class SignalProcessingLab {
             plot.getDomainAxis().setRange(center - range/2, center + range/2);
         });
 
-        JPanel bottom = new JPanel(new BorderLayout());
-        bottom.setBackground(LIGHT_GRAY);
-        bottom.add(positionSlider, BorderLayout.CENTER);
-        bottom.add(centerBtn, BorderLayout.EAST);
-
         panel.add(zoomPanel, BorderLayout.NORTH);
-        panel.add(bottom, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -1187,53 +1065,6 @@ public class SignalProcessingLab {
             chart.getLegend().setItemFont(new Font("Arial", Font.PLAIN, 8));
             chart.getLegend().setItemPaint(WARM_GRAY);
         }
-    }
-
-    private void applyScatterStyle(JFreeChart chart, Color pointColor) {
-        XYPlot plot = chart.getXYPlot();
-
-        // фон/сетка как у остальных
-        plot.setBackgroundPaint(CREAM);
-        plot.setDomainGridlinePaint(new Color(220, 220, 220));
-        plot.setRangeGridlinePaint(new Color(220, 220, 220));
-        plot.setDomainGridlineStroke(new BasicStroke(0.5f));
-        plot.setRangeGridlineStroke(new BasicStroke(0.5f));
-
-        // вместо линии — только точки
-        XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(false, true);
-        renderer.setSeriesPaint(0, pointColor);
-        renderer.setSeriesShape(0, new java.awt.geom.Ellipse2D.Double(-2, -2, 4, 4));
-        plot.setRenderer(renderer);
-
-        // обводка как у остальных
-        plot.setOutlinePaint(MEDIUM_GRAY);
-        plot.setOutlineStroke(new BasicStroke(1.0f));
-
-        // заголовок
-        chart.getTitle().setFont(new Font("Arial", Font.BOLD, 12));
-        chart.getTitle().setPaint(DARK_BROWN);
-
-        // оси/подписи как у остальных
-        plot.getDomainAxis().setLabelFont(new Font("Arial", Font.PLAIN, 10));
-        plot.getDomainAxis().setTickLabelFont(new Font("Arial", Font.PLAIN, 9));
-        plot.getDomainAxis().setLabelPaint(DARK_BROWN);
-        plot.getDomainAxis().setTickLabelPaint(WARM_GRAY);
-
-        plot.getRangeAxis().setLabelFont(new Font("Arial", Font.PLAIN, 10));
-        plot.getRangeAxis().setTickLabelFont(new Font("Arial", Font.PLAIN, 9));
-        plot.getRangeAxis().setLabelPaint(DARK_BROWN);
-        plot.getRangeAxis().setTickLabelPaint(WARM_GRAY);
-
-        // легенда как у остальных
-        if (chart.getLegend() != null) {
-            chart.getLegend().setBackgroundPaint(null);
-            chart.getLegend().setItemFont(new Font("Arial", Font.PLAIN, 8));
-            chart.getLegend().setItemPaint(WARM_GRAY);
-        }
-
-        // (опционально) диапазон фазы, если хочешь как обычно
-        plot.getRangeAxis().setAutoRange(false);
-        plot.getRangeAxis().setRange(-Math.PI, Math.PI);
     }
 
     static class Complex {
