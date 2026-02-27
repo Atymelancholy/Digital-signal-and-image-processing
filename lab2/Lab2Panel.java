@@ -17,9 +17,9 @@ public class Lab2Panel extends JPanel {
     // Параметры фильтров согласно варианту
     private static final int MOVING_AVG_ORDER = 31;
     private static final double FIR_HIGHPASS_CUTOFF = 150.0;
-    private static final int FIR_ORDER = 101;
+    private static final int FIR_TAPS = 101;
     private static final double IIR_NOTCH_CENTER_FREQ = 130.0;
-    private static final double IIR_NOTCH_BANDWIDTH = 10.0;
+    private static final double IIR_NOTCH_BANDWIDTH = 8.0;
 
     public Lab2Panel() {
         setLayout(new BorderLayout());
@@ -91,7 +91,8 @@ public class Lab2Panel extends JPanel {
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        double[] firCoeffs = DSPProcessor.designHighpassFIR(FIR_HIGHPASS_CUTOFF, FIR_ORDER, SignalData.SAMPLE_RATE);
+        double[] firCoeffs = DSPProcessor.designHighpassFIR(FIR_HIGHPASS_CUTOFF, FIR_TAPS, SignalData.SAMPLE_RATE);
+        System.out.println("sum(h) = " + Arrays.stream(firCoeffs).sum());
         double[] noisyX = DSPProcessor.addLowFrequencyNoise(SignalData.x, 30, SignalData.SAMPLE_RATE);
         double[] filteredX = DSPProcessor.applyFIRFilter(noisyX, firCoeffs);
 
@@ -106,9 +107,10 @@ public class Lab2Panel extends JPanel {
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(firCoeffs, false, null,
                 SignalData.SAMPLE_RATE, SignalData.FFT_SIZE);
         XYSeries series = new XYSeries("АЧХ");
-        for (int i = 1; i < freqResponse.length; i += 10) {
+        for (int i = 1; i < freqResponse.length; i += 1) {
             double freq = i * (SignalData.SAMPLE_RATE / 2.0) / (freqResponse.length - 1);
-            series.add(freq, 20 * Math.log10(freqResponse[i] + 1e-10));
+            if (freq > 1000) break;
+            series.add(freq, 20 * Math.log10(freqResponse[i] + 1e-12));
         }
         XYSeriesCollection dataset = new XYSeriesCollection(series);
         JFreeChart chart = ChartFactory.createXYLineChart(
@@ -127,7 +129,7 @@ public class Lab2Panel extends JPanel {
         infoPanel.add(new JLabel("Тип: КИХ ВЧ"));
         infoPanel.add(new JLabel("Окно: Хэмминга"));
         infoPanel.add(new JLabel("fc = " + FIR_HIGHPASS_CUTOFF + " Гц"));
-        infoPanel.add(new JLabel("Порядок N = " + FIR_ORDER));
+        infoPanel.add(new JLabel("Порядок N = " + FIR_TAPS));
         panel.add(infoPanel);
 
         return panel;
@@ -151,10 +153,11 @@ public class Lab2Panel extends JPanel {
         panel.add(createPlayableChartPanel(filteredXShort, "После БИХ режекторного", true, filteredX));
 
         // АЧХ БИХ-фильтра
+        int RESP_FFT = 1 << 18; // 262144
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(null, true, iirCoeffs,
-                SignalData.SAMPLE_RATE, SignalData.FFT_SIZE);
+                SignalData.SAMPLE_RATE, RESP_FFT);
         XYSeries series = new XYSeries("АЧХ");
-        for (int i = 1; i < freqResponse.length; i += 5) {
+        for (int i = 1; i < freqResponse.length; i += 1) {
             double freq = i * (SignalData.SAMPLE_RATE / 2.0) / (freqResponse.length - 1);
             series.add(freq, 20 * Math.log10(freqResponse[i] + 1e-10));
         }

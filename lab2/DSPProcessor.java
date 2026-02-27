@@ -234,54 +234,85 @@ public class DSPProcessor {
     public static double[] applyMovingAverageFilter(double[] input, int M) {
         int len = input.length;
         double[] output = new double[len];
+        double invM = 1.0 / M;
+
         for (int n = 0; n < len; n++) {
-            double sum = 0;
-            int count = 0;
-            for (int j = 0; j < M; j++) {
-                int index = n + j;
-                if (index < len) {
-                    sum += input[index];
-                    count++;
-                }
+            double sum = 0.0;
+            for (int k = 0; k < M; k++) {
+                int idx = n - k;          // берем прошлые отсчёты
+                if (idx >= 0) sum += input[idx]; // вне массива считаем 0
             }
-            output[n] = (count > 0) ? sum / count : 0;
+            output[n] = sum * invM;
         }
         return output;
     }
 
-    public static double[] designHighpassFIR(double fc, int N, int sampleRate) {
-        double[] h = new double[N + 1];
-        double wc = 2 * Math.PI * fc / sampleRate;
-        for (int n = 0; n <= N; n++) {
-            int m = n - N / 2;
-            if (m == 0) {
-                h[n] = 1.0 - wc / Math.PI;
-            } else {
-                h[n] = -Math.sin(m * wc) / (Math.PI * m);
-            }
-            double window = 0.54 - 0.46 * Math.cos(2 * Math.PI * n / N);
-            h[n] *= window;
+    public static double[] designHighpassFIR(double fc, int M, int sampleRate) {
+        if (M % 2 == 0) throw new IllegalArgumentException("M должно быть нечётным");
+        int N = M - 1;
+        int mid = N / 2;
+
+        double wc = 2.0 * Math.PI * fc / sampleRate;
+
+        // 1) строим идеальный ФНЧ и умножаем на окно Хэмминга
+        double[] hlp = new double[M];
+        for (int n = 0; n < M; n++) {
+            int m = n - mid;
+
+            double hd = (m == 0)
+                    ? (wc / Math.PI)                 // = 2*fc/fs
+                    : (Math.sin(wc * m) / (Math.PI * m));
+
+            double w = 0.54 - 0.46 * Math.cos(2.0 * Math.PI * n / N); // Хэмминг
+            hlp[n] = hd * w;
         }
-        return h;
+
+        // 2) нормируем ФНЧ так, чтобы sum = 1 (иначе будет “не тот” уровень)
+        double sum = 0.0;
+        for (double v : hlp) sum += v;
+        for (int i = 0; i < M; i++) hlp[i] /= sum;
+
+        // 3) спектральная инверсия: ВЧ = δ[n-mid] - ФНЧ
+        double[] hhp = new double[M];
+        for (int i = 0; i < M; i++) hhp[i] = -hlp[i];
+        hhp[mid] += 1.0;
+
+        return hhp;
     }
 
     public static double[] applyFIRFilter(double[] input, double[] h) {
-        double[] fullConvolution = convolution(input, h);
-        return Arrays.copyOf(fullConvolution, input.length);
+        double[] full = convolution(input, h);
+        int delay = (h.length - 1) / 2;          // для M=101 это 50
+
+        int start = delay;
+        int end = Math.min(start + input.length, full.length);
+
+        double[] y = Arrays.copyOfRange(full, start, end);
+        if (y.length < input.length) y = Arrays.copyOf(y, input.length);
+        return y;
     }
 
     public static double[] designNotchIIR(double f0, double BW, int sampleRate) {
+        double theta = 2.0 * Math.PI * f0 / sampleRate;  // ω0
+        double bwNorm = BW / sampleRate;
+
+        // Радиус полюсов (должен быть 0 < R < 1)
+        double R = 1.0 - 3.0 * bwNorm;
+        R = Math.max(1e-6, Math.min(R, 0.999999));
+
+        // Нормировка усиления (чтобы вне режекции было ~1)
+        double K = (1.0 - 2.0 * R * Math.cos(theta) + R * R)
+                / (2.0 - 2.0 * Math.cos(theta));
+
         double[] coeffs = new double[5];
-        double f_norm = f0 / sampleRate;
-        double bw_norm = BW / sampleRate;
-        double R = 1 - 3 * bw_norm;
-        double K = (1 - 2 * R * Math.cos(2 * Math.PI * f_norm) + R * R) /
-                (2 - 2 * Math.cos(2 * Math.PI * f_norm));
-        coeffs[0] = K;                                 // a0
-        coeffs[1] = -2 * K * Math.cos(2 * Math.PI * f_norm); // a1
-        coeffs[2] = K;                                 // a2
-        coeffs[3] = 2 * R * Math.cos(2 * Math.PI * f_norm);  // b1
-        coeffs[4] = -R * R;                             // b2
+        coeffs[0] = K;                          // a0
+        coeffs[1] = -2.0 * K * Math.cos(theta); // a1
+        coeffs[2] = K;                          // a2
+
+        // !!! ВАЖНО: правильные знаки для устойчивости
+        coeffs[3] = -2.0 * R * Math.cos(theta); // b1
+        coeffs[4] = R * R;                      // b2 (положительный!)
+
         return coeffs;
     }
 
