@@ -1,4 +1,3 @@
-// файл: org/example/Lab1Panel.java
 package org.example;
 
 import javax.swing.*;

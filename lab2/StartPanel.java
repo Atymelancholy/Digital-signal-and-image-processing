@@ -1,4 +1,3 @@
-// файл: org/example/StartPanel.java
 package org.example;
 
 import javax.swing.*;
@@ -13,18 +12,15 @@ public class StartPanel extends JPanel {
         setBackground(ChartUtils.LIGHT_BEIGE);
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Заголовок
         JLabel titleLabel = new JLabel("Главное меню — исходные сигналы", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
         titleLabel.setForeground(ChartUtils.DARK_BROWN);
         titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
         add(titleLabel, BorderLayout.NORTH);
 
-        // Панель с графиками исходных сигналов
         JPanel signalsPanel = createSignalsPanel();
         add(signalsPanel, BorderLayout.CENTER);
 
-        // Панель с кнопками выбора лабораторной
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 10));
         buttonPanel.setBackground(ChartUtils.LIGHT_BEIGE);
 
@@ -61,7 +57,6 @@ public class StartPanel extends JPanel {
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Используем короткие версии для отображения (первые 2000 отсчетов)
         int displayLen = Math.min(2000, SignalData.N);
         double[] xShort = java.util.Arrays.copyOf(SignalData.x, displayLen);
         double[] yShort = java.util.Arrays.copyOf(SignalData.y, displayLen);

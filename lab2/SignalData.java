@@ -1,10 +1,8 @@
-// файл: org/example/SignalData.java
 package org.example;
 
 import java.util.Arrays;
 
 public class SignalData {
-    // Параметры сигналов (ЛР1)
     public static final double[] A_x = {1.0, 0.8, 0.5};
     public static final double f0_x = 65.0;
     public static final int[] h_x = {1, 2, 3};
@@ -20,7 +18,6 @@ public class SignalData {
     public static final int N = (int) (DURATION * SAMPLE_RATE);
     public static final int FFT_SIZE = nextPowerOfTwo(N);
 
-    // Сигналы, дополненные до FFT_SIZE
     public static final double[] x;
     public static final double[] y;
 

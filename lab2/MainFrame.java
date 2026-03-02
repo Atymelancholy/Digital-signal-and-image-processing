@@ -1,4 +1,3 @@
-// файл: org/example/MainFrame.java
 package org.example;
 
 import javax.swing.*;
@@ -15,12 +14,10 @@ public class MainFrame extends JFrame {
         setSize(1600, 900);
         setLocationRelativeTo(null);
 
-        // Создаем панели
         startPanel = new StartPanel(this);
         lab1Panel = new Lab1Panel();
         lab2Panel = new Lab2Panel();
 
-        // Настройка меню
         JMenuBar menuBar = new JMenuBar();
         menuBar.setBackground(ChartUtils.LIGHT_GRAY);
 
@@ -47,7 +44,6 @@ public class MainFrame extends JFrame {
         menuBar.add(labMenu);
         setJMenuBar(menuBar);
 
-        // Показываем стартовый экран
         showStartMenu();
     }
 
@@ -73,7 +69,6 @@ public class MainFrame extends JFrame {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
-            // ignore
         }
         UIManager.put("Panel.background", ChartUtils.LIGHT_BEIGE);
         UIManager.put("TextField.background", ChartUtils.CREAM);

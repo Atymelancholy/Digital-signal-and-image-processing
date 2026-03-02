@@ -1,4 +1,3 @@
-// файл: org/example/DSPProcessor.java
 package org.example;
 
 import org.jtransforms.fft.DoubleFFT_1D;
@@ -6,7 +5,6 @@ import java.util.Arrays;
 
 public class DSPProcessor {
 
-    // === ДПФ / ОДПФ ===
     public static Complex[] dft(double[] signal) {
         int N = signal.length;
         Complex[] result = new Complex[N];
@@ -36,7 +34,6 @@ public class DSPProcessor {
         return result;
     }
 
-    // === БПФ (собственная реализация) ===
     public static Complex[] fft(double[] signal) {
         int N = signal.length;
         if ((N & (N - 1)) != 0)
@@ -79,7 +76,6 @@ public class DSPProcessor {
         return output;
     }
 
-    // === БПФ через библиотеку JTransforms ===
     public static Complex[] fftLibrary(double[] signal) {
         int N = signal.length;
         double[] data = new double[2 * N];
@@ -108,7 +104,6 @@ public class DSPProcessor {
         return result;
     }
 
-    // === Свертка и корреляция (временная область) ===
     public static double[] convolution(double[] a, double[] b) {
         int M = a.length, N = b.length;
         int resultSize = M + N - 1;
@@ -139,7 +134,6 @@ public class DSPProcessor {
         return r;
     }
 
-    // === Свертка и корреляция через БПФ (собственная реализация) ===
     public static double[] convolutionFFT(double[] a, double[] b) {
         int size = 1;
         while (size < a.length + b.length - 1) size *= 2;
@@ -173,7 +167,6 @@ public class DSPProcessor {
         return r;
     }
 
-    // === Свертка и корреляция через библиотечную БПФ ===
     public static double[] convolutionFFTLibrary(double[] a, double[] b) {
         int full = a.length + b.length - 1;
         int size = 1;
@@ -207,7 +200,6 @@ public class DSPProcessor {
         return r;
     }
 
-    // === Спектры ===
     public static double[] amplitudeSpectrum(Complex[] spectrum) {
         double[] amps = new double[spectrum.length];
         for (int i = 0; i < spectrum.length; i++) amps[i] = spectrum[i].abs();
@@ -230,7 +222,6 @@ public class DSPProcessor {
         return phase;
     }
 
-    // === Фильтры для ЛР2 ===
     public static double[] applyMovingAverageFilter(double[] input, int M) {
         int len = input.length;
         double[] output = new double[len];
@@ -239,8 +230,8 @@ public class DSPProcessor {
         for (int n = 0; n < len; n++) {
             double sum = 0.0;
             for (int k = 0; k < M; k++) {
-                int idx = n - k;          // берем прошлые отсчёты
-                if (idx >= 0) sum += input[idx]; // вне массива считаем 0
+                int idx = n - k;
+                if (idx >= 0) sum += input[idx];
             }
             output[n] = sum * invM;
         }
@@ -254,25 +245,22 @@ public class DSPProcessor {
 
         double wc = 2.0 * Math.PI * fc / sampleRate;
 
-        // 1) строим идеальный ФНЧ и умножаем на окно Хэмминга
         double[] hlp = new double[M];
         for (int n = 0; n < M; n++) {
             int m = n - mid;
 
             double hd = (m == 0)
-                    ? (wc / Math.PI)                 // = 2*fc/fs
+                    ? (wc / Math.PI)
                     : (Math.sin(wc * m) / (Math.PI * m));
 
-            double w = 0.54 - 0.46 * Math.cos(2.0 * Math.PI * n / N); // Хэмминг
+            double w = 0.54 - 0.46 * Math.cos(2.0 * Math.PI * n / N);
             hlp[n] = hd * w;
         }
 
-        // 2) нормируем ФНЧ так, чтобы sum = 1 (иначе будет “не тот” уровень)
         double sum = 0.0;
         for (double v : hlp) sum += v;
         for (int i = 0; i < M; i++) hlp[i] /= sum;
 
-        // 3) спектральная инверсия: ВЧ = δ[n-mid] - ФНЧ
         double[] hhp = new double[M];
         for (int i = 0; i < M; i++) hhp[i] = -hlp[i];
         hhp[mid] += 1.0;
@@ -282,7 +270,7 @@ public class DSPProcessor {
 
     public static double[] applyFIRFilter(double[] input, double[] h) {
         double[] full = convolution(input, h);
-        int delay = (h.length - 1) / 2;          // для M=101 это 50
+        int delay = (h.length - 1) / 2;
 
         int start = delay;
         int end = Math.min(start + input.length, full.length);
@@ -296,22 +284,19 @@ public class DSPProcessor {
         double theta = 2.0 * Math.PI * f0 / sampleRate;  // ω0
         double bwNorm = BW / sampleRate;
 
-        // Радиус полюсов (должен быть 0 < R < 1)
         double R = 1.0 - 3.0 * bwNorm;
         R = Math.max(1e-6, Math.min(R, 0.999999));
 
-        // Нормировка усиления (чтобы вне режекции было ~1)
         double K = (1.0 - 2.0 * R * Math.cos(theta) + R * R)
                 / (2.0 - 2.0 * Math.cos(theta));
 
         double[] coeffs = new double[5];
-        coeffs[0] = K;                          // a0
-        coeffs[1] = -2.0 * K * Math.cos(theta); // a1
-        coeffs[2] = K;                          // a2
+        coeffs[0] = K;
+        coeffs[1] = -2.0 * K * Math.cos(theta);
+        coeffs[2] = K;
 
-        // !!! ВАЖНО: правильные знаки для устойчивости
-        coeffs[3] = -2.0 * R * Math.cos(theta); // b1
-        coeffs[4] = R * R;                      // b2 (положительный!)
+        coeffs[3] = -2.0 * R * Math.cos(theta);
+        coeffs[4] = R * R;
 
         return coeffs;
     }

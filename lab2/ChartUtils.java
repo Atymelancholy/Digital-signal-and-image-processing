@@ -19,7 +19,6 @@ import java.awt.geom.Ellipse2D;
 
 public class ChartUtils {
 
-    // Цветовая гамма
     public static final Color LIGHT_BEIGE = new Color(250, 245, 238);
     public static final Color OFF_WHITE = new Color(252, 250, 245);
     public static final Color CREAM = new Color(255, 253, 248);

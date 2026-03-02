@@ -1,4 +1,3 @@
-// файл: org/example/Complex.java
 package org.example;
 
 public class Complex {

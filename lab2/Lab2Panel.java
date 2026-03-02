@@ -14,7 +14,6 @@ import java.util.Arrays;
 
 public class Lab2Panel extends JPanel {
 
-    // Параметры фильтров согласно варианту
     private static final int MOVING_AVG_ORDER = 31;
     private static final double FIR_HIGHPASS_CUTOFF = 150.0;
     private static final int FIR_TAPS = 101;
@@ -36,7 +35,6 @@ public class Lab2Panel extends JPanel {
         add(filterTabs, BorderLayout.CENTER);
     }
 
-    // ================== Однородный фильтр ==================
     private JPanel createMovingAvgFilterPanel() {
         JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
@@ -48,11 +46,9 @@ public class Lab2Panel extends JPanel {
         double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
         double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
 
-        // Графики с кнопками воспроизведения
         panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
         panel.add(createPlayableChartPanel(filteredXShort, "После однородного фильтра", true, filteredX));
 
-        // АЧХ однородного фильтра
         double[] h = new double[MOVING_AVG_ORDER];
         Arrays.fill(h, 1.0 / MOVING_AVG_ORDER);
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(h, false, null,
@@ -73,19 +69,18 @@ public class Lab2Panel extends JPanel {
         chartPanel.setMouseWheelEnabled(true);
         panel.add(chartPanel);
 
-        // Информационная панель
         JPanel infoPanel = new JPanel();
         infoPanel.setBackground(ChartUtils.CREAM);
         infoPanel.setBorder(BorderFactory.createTitledBorder("Параметры"));
         infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
         infoPanel.add(new JLabel("Тип: Однородный нерекурсивный"));
         infoPanel.add(new JLabel("M = " + MOVING_AVG_ORDER));
+        infoPanel.add(new JLabel("Частота дискретизации = " + SignalData.SAMPLE_RATE));
         panel.add(infoPanel);
 
         return panel;
     }
 
-    // ================== КИХ ВЧ фильтр ==================
     private JPanel createFIRFilterPanel() {
         JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
@@ -93,17 +88,23 @@ public class Lab2Panel extends JPanel {
 
         double[] firCoeffs = DSPProcessor.designHighpassFIR(FIR_HIGHPASS_CUTOFF, FIR_TAPS, SignalData.SAMPLE_RATE);
         System.out.println("sum(h) = " + Arrays.stream(firCoeffs).sum());
-        double[] noisyX = DSPProcessor.addLowFrequencyNoise(SignalData.x, 30, SignalData.SAMPLE_RATE);
-        double[] filteredX = DSPProcessor.applyFIRFilter(noisyX, firCoeffs);
 
+
+//        double[] noisyX = DSPProcessor.addLowFrequencyNoise(SignalData.x, 30, SignalData.SAMPLE_RATE);
+//        double[] filteredX = DSPProcessor.applyFIRFilter(noisyX, firCoeffs);
+//        int displayLen = Math.min(2000, SignalData.x.length);
+//        double[] xShort = Arrays.copyOf(noisyX, displayLen);
+//        double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
+//        panel.add(createPlayableChartPanel(xShort, "Сигнал с НЧ-помехой (30 Гц)", true, noisyX));
+//        panel.add(createPlayableChartPanel(filteredXShort, "После КИХ ВЧ фильтра", true, filteredX));
+
+        double[] filteredX = DSPProcessor.applyFIRFilter(SignalData.x, firCoeffs);
         int displayLen = Math.min(2000, SignalData.x.length);
-        double[] noisyXShort = Arrays.copyOf(noisyX, displayLen);
+        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
         double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
-
-        panel.add(createPlayableChartPanel(noisyXShort, "Сигнал с НЧ-помехой (30 Гц)", true, noisyX));
+        panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
         panel.add(createPlayableChartPanel(filteredXShort, "После КИХ ВЧ фильтра", true, filteredX));
 
-        // АЧХ КИХ-фильтра
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(firCoeffs, false, null,
                 SignalData.SAMPLE_RATE, SignalData.FFT_SIZE);
         XYSeries series = new XYSeries("АЧХ");
@@ -121,7 +122,6 @@ public class Lab2Panel extends JPanel {
         chartPanel.setMouseWheelEnabled(true);
         panel.add(chartPanel);
 
-        // Информационная панель
         JPanel infoPanel = new JPanel();
         infoPanel.setBackground(ChartUtils.CREAM);
         infoPanel.setBorder(BorderFactory.createTitledBorder("Параметры"));
@@ -135,24 +135,28 @@ public class Lab2Panel extends JPanel {
         return panel;
     }
 
-    // ================== БИХ режекторный фильтр ==================
     private JPanel createIIRFilterPanel() {
         JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+//        double[] iirCoeffs = DSPProcessor.designNotchIIR(IIR_NOTCH_CENTER_FREQ, IIR_NOTCH_BANDWIDTH, SignalData.SAMPLE_RATE);
+//        double[] noisyX = DSPProcessor.addSingleFrequencyNoise(SignalData.x, IIR_NOTCH_CENTER_FREQ, SignalData.SAMPLE_RATE);
+//        double[] filteredX = DSPProcessor.applyIIRFilter(noisyX, iirCoeffs);
+//        int displayLen = Math.min(2000, SignalData.x.length);
+//        double[] noisyXShort = Arrays.copyOf(noisyX, displayLen);
+//        double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
+//        panel.add(createPlayableChartPanel(noisyXShort, "Сигнал с помехой " + (int) IIR_NOTCH_CENTER_FREQ + " Гц", true, noisyX));
+//        panel.add(createPlayableChartPanel(filteredXShort, "После БИХ режекторного", true, filteredX));
+
         double[] iirCoeffs = DSPProcessor.designNotchIIR(IIR_NOTCH_CENTER_FREQ, IIR_NOTCH_BANDWIDTH, SignalData.SAMPLE_RATE);
-        double[] noisyX = DSPProcessor.addSingleFrequencyNoise(SignalData.x, IIR_NOTCH_CENTER_FREQ, SignalData.SAMPLE_RATE);
-        double[] filteredX = DSPProcessor.applyIIRFilter(noisyX, iirCoeffs);
-
+        double[] filteredX = DSPProcessor.applyIIRFilter(SignalData.x, iirCoeffs);
         int displayLen = Math.min(2000, SignalData.x.length);
-        double[] noisyXShort = Arrays.copyOf(noisyX, displayLen);
+        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
         double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
-
-        panel.add(createPlayableChartPanel(noisyXShort, "Сигнал с помехой " + (int) IIR_NOTCH_CENTER_FREQ + " Гц", true, noisyX));
+        panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
         panel.add(createPlayableChartPanel(filteredXShort, "После БИХ режекторного", true, filteredX));
 
-        // АЧХ БИХ-фильтра
         int RESP_FFT = 1 << 18; // 262144
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(null, true, iirCoeffs,
                 SignalData.SAMPLE_RATE, RESP_FFT);
@@ -170,7 +174,6 @@ public class Lab2Panel extends JPanel {
         chartPanel.setMouseWheelEnabled(true);
         panel.add(chartPanel);
 
-        // Информационная панель
         JPanel infoPanel = new JPanel();
         infoPanel.setBackground(ChartUtils.CREAM);
         infoPanel.setBorder(BorderFactory.createTitledBorder("Параметры"));
@@ -186,17 +189,14 @@ public class Lab2Panel extends JPanel {
         return panel;
     }
 
-    // ================== Вспомогательный метод для создания графика с кнопкой воспроизведения ==================
     private JPanel createPlayableChartPanel(double[] displayData, String title, boolean isTimeDomain, double[] fullSignal) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(ChartUtils.OFF_WHITE);
         panel.setBorder(BorderFactory.createLineBorder(ChartUtils.MEDIUM_GRAY, 1));
 
-        // График (метод createDynamicChartPanel уже добавляет заголовок)
         JPanel chartPanel = ChartUtils.createDynamicChartPanel(displayData, title,
                 "Время, мс", "Амплитуда", ChartUtils.FOREST_GREEN, isTimeDomain, false);
 
-        // Кнопка воспроизведения
         JButton playButton = new JButton("▶ Воспроизвести");
         playButton.setFont(new Font("Arial", Font.PLAIN, 10));
         playButton.setBackground(ChartUtils.CREAM);
@@ -212,7 +212,6 @@ public class Lab2Panel extends JPanel {
         return panel;
     }
 
-    // ================== Воспроизведение сигнала ==================
     private void playSignal(double[] signal) {
         final int sampleRate = SignalData.SAMPLE_RATE;
         final int bits = 16;
@@ -220,13 +219,12 @@ public class Lab2Panel extends JPanel {
         final boolean signed = true;
         final boolean bigEndian = false;
 
-        // Нормализация сигнала в диапазон [-1, 1] для 16-bit PCM
         double max = 0;
         for (double v : signal) {
             if (Math.abs(v) > max) max = Math.abs(v);
         }
         if (max == 0) return;
-        final double amplification = 0.9; // избегаем клиппинга
+        final double amplification = 0.9;
         byte[] audioData = new byte[signal.length * 2];
         for (int i = 0; i < signal.length; i++) {
             short sample = (short) ((signal[i] / max) * amplification * Short.MAX_VALUE);
