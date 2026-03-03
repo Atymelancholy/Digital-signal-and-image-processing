@@ -35,20 +35,45 @@ public class Lab2Panel extends JPanel {
         add(filterTabs, BorderLayout.CENTER);
     }
 
+    private JPanel createSpectrumChartPanel(double[] signal, String title) {
+        Complex[] spectrum = DSPProcessor.fftLibrary(signal);
+        double[] amplitude = DSPProcessor.amplitudeSpectrum(spectrum);
+
+        return ChartUtils.createDynamicChartPanel(
+                amplitude,
+                title,
+                "Частота, Гц",
+                "Амплитуда",
+                ChartUtils.TERRA_COTTA,
+                false,
+                true
+        );
+    }
+
     private JPanel createMovingAvgFilterPanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        double[] filteredX = DSPProcessor.applyMovingAverageFilter(SignalData.x, MOVING_AVG_ORDER);
+        // Добавляем ВЧ-помеху, чтобы сглаживание было хорошо видно
+        double[] noisyX = DSPProcessor.addHighFrequencyNoise(
+                SignalData.x, 1500.0, 0.35, SignalData.SAMPLE_RATE);
+
+        double[] filteredX = DSPProcessor.applyMovingAverageFilter(noisyX, MOVING_AVG_ORDER);
 
         int displayLen = Math.min(2000, SignalData.x.length);
-        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
+        double[] noisyXShort = Arrays.copyOf(noisyX, displayLen);
         double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
 
-        panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
+        // Временная область
+        panel.add(createPlayableChartPanel(noisyXShort, "Сигнал с ВЧ-помехой (1500 Гц)", true, noisyX));
         panel.add(createPlayableChartPanel(filteredXShort, "После однородного фильтра", true, filteredX));
 
+        // Частотная область
+        panel.add(createSpectrumChartPanel(noisyX, "Спектр до фильтрации"));
+        panel.add(createSpectrumChartPanel(filteredX, "Спектр после однородного фильтра"));
+
+        // АЧХ однородного фильтра
         double[] h = new double[MOVING_AVG_ORDER];
         Arrays.fill(h, 1.0 / MOVING_AVG_ORDER);
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(h, false, null,
@@ -76,13 +101,14 @@ public class Lab2Panel extends JPanel {
         infoPanel.add(new JLabel("Тип: Однородный нерекурсивный"));
         infoPanel.add(new JLabel("M = " + MOVING_AVG_ORDER));
         infoPanel.add(new JLabel("Частота дискретизации = " + SignalData.SAMPLE_RATE));
+        infoPanel.add(new JLabel("Добавлена ВЧ-помеха: 1500 Гц"));
         panel.add(infoPanel);
 
         return panel;
     }
 
     private JPanel createFIRFilterPanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
@@ -90,20 +116,23 @@ public class Lab2Panel extends JPanel {
         System.out.println("sum(h) = " + Arrays.stream(firCoeffs).sum());
 
 
-//        double[] noisyX = DSPProcessor.addLowFrequencyNoise(SignalData.x, 30, SignalData.SAMPLE_RATE);
-//        double[] filteredX = DSPProcessor.applyFIRFilter(noisyX, firCoeffs);
-//        int displayLen = Math.min(2000, SignalData.x.length);
-//        double[] xShort = Arrays.copyOf(noisyX, displayLen);
-//        double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
-//        panel.add(createPlayableChartPanel(xShort, "Сигнал с НЧ-помехой (30 Гц)", true, noisyX));
-//        panel.add(createPlayableChartPanel(filteredXShort, "После КИХ ВЧ фильтра", true, filteredX));
-
-        double[] filteredX = DSPProcessor.applyFIRFilter(SignalData.x, firCoeffs);
+        double[] noisyX = DSPProcessor.addLowFrequencyNoise(SignalData.x, 30, SignalData.SAMPLE_RATE);
+        double[] filteredX = DSPProcessor.applyFIRFilter(noisyX, firCoeffs);
         int displayLen = Math.min(2000, SignalData.x.length);
-        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
+        double[] xShort = Arrays.copyOf(noisyX, displayLen);
         double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
-        panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
+        panel.add(createPlayableChartPanel(xShort, "Сигнал с НЧ-помехой (30 Гц)", true, noisyX));
         panel.add(createPlayableChartPanel(filteredXShort, "После КИХ ВЧ фильтра", true, filteredX));
+
+        panel.add(createSpectrumChartPanel(xShort, "Спектр до фильтрации"));
+        panel.add(createSpectrumChartPanel(filteredX, "Спектр после однородного фильтра"));
+
+//        double[] filteredX = DSPProcessor.applyFIRFilter(SignalData.x, firCoeffs);
+//        int displayLen = Math.min(2000, SignalData.x.length);
+//        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
+//        double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
+//        panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
+//        panel.add(createPlayableChartPanel(filteredXShort, "После КИХ ВЧ фильтра", true, filteredX));
 
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(firCoeffs, false, null,
                 SignalData.SAMPLE_RATE, SignalData.FFT_SIZE);
@@ -136,28 +165,31 @@ public class Lab2Panel extends JPanel {
     }
 
     private JPanel createIIRFilterPanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 2, 10, 10));
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-//        double[] iirCoeffs = DSPProcessor.designNotchIIR(IIR_NOTCH_CENTER_FREQ, IIR_NOTCH_BANDWIDTH, SignalData.SAMPLE_RATE);
-//        double[] noisyX = DSPProcessor.addSingleFrequencyNoise(SignalData.x, IIR_NOTCH_CENTER_FREQ, SignalData.SAMPLE_RATE);
-//        double[] filteredX = DSPProcessor.applyIIRFilter(noisyX, iirCoeffs);
-//        int displayLen = Math.min(2000, SignalData.x.length);
-//        double[] noisyXShort = Arrays.copyOf(noisyX, displayLen);
-//        double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
-//        panel.add(createPlayableChartPanel(noisyXShort, "Сигнал с помехой " + (int) IIR_NOTCH_CENTER_FREQ + " Гц", true, noisyX));
-//        panel.add(createPlayableChartPanel(filteredXShort, "После БИХ режекторного", true, filteredX));
-
         double[] iirCoeffs = DSPProcessor.designNotchIIR(IIR_NOTCH_CENTER_FREQ, IIR_NOTCH_BANDWIDTH, SignalData.SAMPLE_RATE);
-        double[] filteredX = DSPProcessor.applyIIRFilter(SignalData.x, iirCoeffs);
+        double[] noisyX = DSPProcessor.addSingleFrequencyNoise(SignalData.x, IIR_NOTCH_CENTER_FREQ, SignalData.SAMPLE_RATE);
+        double[] filteredX = DSPProcessor.applyIIRFilter(noisyX, iirCoeffs);
         int displayLen = Math.min(2000, SignalData.x.length);
-        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
+        double[] noisyXShort = Arrays.copyOf(noisyX, displayLen);
         double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
-        panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
+        panel.add(createPlayableChartPanel(noisyXShort, "Сигнал с помехой " + (int) IIR_NOTCH_CENTER_FREQ + " Гц", true, noisyX));
         panel.add(createPlayableChartPanel(filteredXShort, "После БИХ режекторного", true, filteredX));
 
-        int RESP_FFT = 1 << 18; // 262144
+        panel.add(createSpectrumChartPanel(SignalData.x, "Спектр до фильтрации"));
+        panel.add(createSpectrumChartPanel(filteredX, "Спектр после однородного фильтра"));
+
+//        double[] iirCoeffs = DSPProcessor.designNotchIIR(IIR_NOTCH_CENTER_FREQ, IIR_NOTCH_BANDWIDTH, SignalData.SAMPLE_RATE);
+//        double[] filteredX = DSPProcessor.applyIIRFilter(SignalData.x, iirCoeffs);
+//        int displayLen = Math.min(2000, SignalData.x.length);
+//        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
+//        double[] filteredXShort = Arrays.copyOf(filteredX, displayLen);
+//        panel.add(createPlayableChartPanel(xShort, "Исходный сигнал x(t)", true, SignalData.x));
+//        panel.add(createPlayableChartPanel(filteredXShort, "После БИХ режекторного", true, filteredX));
+
+        int RESP_FFT = 1 << 18;
         double[] freqResponse = DSPProcessor.calculateFrequencyResponse(null, true, iirCoeffs,
                 SignalData.SAMPLE_RATE, RESP_FFT);
         XYSeries series = new XYSeries("АЧХ");

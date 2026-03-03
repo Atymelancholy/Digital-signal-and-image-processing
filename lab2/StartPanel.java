@@ -1,7 +1,9 @@
 package org.example;
 
+import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
+import java.util.Arrays;
 
 public class StartPanel extends JPanel {
     private final MainFrame mainFrame;
@@ -58,14 +60,101 @@ public class StartPanel extends JPanel {
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         int displayLen = Math.min(2000, SignalData.N);
-        double[] xShort = java.util.Arrays.copyOf(SignalData.x, displayLen);
-        double[] yShort = java.util.Arrays.copyOf(SignalData.y, displayLen);
+        double[] xShort = Arrays.copyOf(SignalData.x, displayLen);
+        double[] yShort = Arrays.copyOf(SignalData.y, displayLen);
 
-        panel.add(ChartUtils.createDynamicChartPanel(xShort, "x(t) - исходный сигнал",
-                "Время, мс", "Амплитуда", ChartUtils.FOREST_GREEN, true, false));
-        panel.add(ChartUtils.createDynamicChartPanel(yShort, "y(t) - исходный сигнал",
-                "Время, мс", "Амплитуда", ChartUtils.TERRA_COTTA, true, false));
+        panel.add(createPlayableChartPanel(
+                xShort,
+                "x(t) - исходный сигнал",
+                ChartUtils.FOREST_GREEN,
+                SignalData.x
+        ));
+
+        panel.add(createPlayableChartPanel(
+                yShort,
+                "y(t) - исходный сигнал",
+                ChartUtils.TERRA_COTTA,
+                SignalData.y
+        ));
 
         return panel;
+    }
+
+    private JPanel createPlayableChartPanel(double[] displayData, String title, Color color, double[] fullSignal) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(ChartUtils.OFF_WHITE);
+        panel.setBorder(BorderFactory.createLineBorder(ChartUtils.MEDIUM_GRAY, 1));
+
+        JPanel chartPanel = ChartUtils.createDynamicChartPanel(
+                displayData,
+                title,
+                "Время, мс",
+                "Амплитуда",
+                color,
+                true,
+                false
+        );
+
+        JButton playButton = new JButton("▶ Воспроизвести");
+        playButton.setFont(new Font("Arial", Font.PLAIN, 10));
+        playButton.setBackground(ChartUtils.CREAM);
+        playButton.setForeground(ChartUtils.DARK_BROWN);
+        playButton.addActionListener(e -> playSignal(fullSignal));
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.setBackground(ChartUtils.OFF_WHITE);
+        buttonPanel.add(playButton);
+
+        panel.add(chartPanel, BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private void playSignal(double[] signal) {
+        final int sampleRate = SignalData.SAMPLE_RATE;
+        final int bits = 16;
+        final int channels = 1;
+        final boolean signed = true;
+        final boolean bigEndian = false;
+
+        double max = 0.0;
+        for (double v : signal) {
+            if (Math.abs(v) > max) {
+                max = Math.abs(v);
+            }
+        }
+
+        if (max == 0.0) {
+            return;
+        }
+
+        final double amplification = 0.9;
+        byte[] audioData = new byte[signal.length * 2];
+
+        for (int i = 0; i < signal.length; i++) {
+            short sample = (short) ((signal[i] / max) * amplification * Short.MAX_VALUE);
+            audioData[2 * i] = (byte) (sample & 0xff);
+            audioData[2 * i + 1] = (byte) ((sample >> 8) & 0xff);
+        }
+
+        try {
+            AudioFormat format = new AudioFormat(sampleRate, bits, channels, signed, bigEndian);
+            DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
+            SourceDataLine line = (SourceDataLine) AudioSystem.getLine(info);
+
+            line.open(format);
+            line.start();
+            line.write(audioData, 0, audioData.length);
+            line.drain();
+            line.close();
+        } catch (LineUnavailableException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Не удалось воспроизвести звук: " + ex.getMessage(),
+                    "Ошибка",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
     }
 }
