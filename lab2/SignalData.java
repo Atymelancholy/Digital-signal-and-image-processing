@@ -13,7 +13,7 @@ public class SignalData {
     public static final int[] h_y = {1, 2, 3};
     public static final double phi_y = Math.PI / 2;
 
-    public static final double DURATION = 0.1;
+    public static final double DURATION = 0.5;
     public static final int SAMPLE_RATE = 44100;
     public static final int N = (int) (DURATION * SAMPLE_RATE);
     public static final int FFT_SIZE = nextPowerOfTwo(N);

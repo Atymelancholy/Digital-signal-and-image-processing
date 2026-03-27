@@ -281,10 +281,10 @@ public class DSPProcessor {
     }
 
     public static double[] designNotchIIR(double f0, double BW, int sampleRate) {
-        double theta = 2.0 * Math.PI * f0 / sampleRate;  // ω0
+        double theta = 2.0 * Math.PI * f0 / sampleRate;
         double bwNorm = BW / sampleRate;
-
         double R = 1.0 - 3.0 * bwNorm;
+
         R = Math.max(1e-6, Math.min(R, 0.999999));
 
         double K = (1.0 - 2.0 * R * Math.cos(theta) + R * R)
@@ -361,6 +361,15 @@ public class DSPProcessor {
         double dt = 1.0 / sampleRate;
         for (int i = 0; i < noisy.length; i++) {
             noisy[i] += 0.7 * Math.sin(2 * Math.PI * noiseFreq * i * dt);
+        }
+        return noisy;
+    }
+
+    public static double[] addHighFrequencyNoise(double[] signal, double noiseFreq, double amplitude, int sampleRate) {
+        double[] noisy = signal.clone();
+        double dt = 1.0 / sampleRate;
+        for (int i = 0; i < noisy.length; i++) {
+            noisy[i] += amplitude * Math.sin(2 * Math.PI * noiseFreq * i * dt);
         }
         return noisy;
     }
