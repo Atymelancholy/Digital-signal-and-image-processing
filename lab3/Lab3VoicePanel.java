@@ -15,11 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * П. 4–6: чистый голос, шум, метрики SNR/SI-SDR, DeepFilterNet2; признаки в тексте (без спектрограмм).
- */
 public class Lab3VoicePanel extends JPanel {
-    /** Папка в профиле пользователя: смешанные сигналы и результаты DFN лежат в подкаталогах. */
+
     private static final String LAB_ROOT_DIR_NAME = "Lab3_COSI_audio";
     private static final String SUB_MIXED = "mixed";
     private static final String SUB_DENOISED = "denoised";
@@ -153,7 +150,6 @@ public class Lab3VoicePanel extends JPanel {
         return labRoot().resolve(SUB_DENOISED);
     }
 
-    /** Создаёт ~/Lab3_COSI_audio/mixed и ~/Lab3_COSI_audio/denoised */
     private void ensureLabDirectories() throws IOException {
         Files.createDirectories(mixedDir());
         Files.createDirectories(denoisedDir());
@@ -291,7 +287,7 @@ public class Lab3VoicePanel extends JPanel {
             return;
         }
 
-        appendInfo("Запуск DeepFilterNet2 для всех SNR. Результаты — в одной папке: " + outDir.toAbsolutePath());
+        appendInfo("Запуск DeepFilterNet2 для всех SNR. Результаты — " + outDir.toAbsolutePath());
         appendInfo("Это может занять некоторое время...");
 
         final Path denoisedOutDir = outDir;

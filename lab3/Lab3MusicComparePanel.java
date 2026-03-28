@@ -7,13 +7,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
 
-/**
- * П. 2–3: четыре музыкальных файла разных жанров — признаки и спектрограммы в колонках под заголовками жанров.
- */
 public class Lab3MusicComparePanel extends JPanel {
     private static final int FFT_SIZE = 512;
     private static final int HOP_SIZE = 256;
-    /** Один столбец: ширина под 4 колонки на экране ~1600px */
     private static final Dimension SPEC_SIZE = new Dimension(340, 260);
 
     private final JTextField[] genreFields = new JTextField[4];
@@ -209,7 +205,6 @@ public class Lab3MusicComparePanel extends JPanel {
         return l;
     }
 
-    /** Центрирует блок спектрограммы в колонке. */
     private JPanel wrapChartCentered(JPanel chartOrPlaceholder) {
         JPanel wrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         wrap.setOpaque(false);

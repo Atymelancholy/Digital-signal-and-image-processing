@@ -291,9 +291,6 @@ public class ChartUtils {
         return createSpectrogramChartPanel(spectrogram, title, sampleRate, hopSize, null);
     }
 
-    /**
-     * @param preferredSize если не null — компактный режим для сетки сравнения (например, 4 файла рядом).
-     */
     public static JPanel createSpectrogramChartPanel(double[][] spectrogram, String title, int sampleRate, int hopSize,
                                                      Dimension preferredSize) {
         JPanel panel = new JPanel(new BorderLayout());

@@ -20,3 +20,5 @@ public class Lab3Panel extends JPanel {
         add(tabs, BorderLayout.CENTER);
     }
 }
+
+//https://www.boxentriq.com/steganography/audio-spectrogram

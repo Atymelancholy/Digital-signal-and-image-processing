@@ -6,7 +6,6 @@ import java.util.Arrays;
 
 public class Lab3AudioProcessor {
 
-    /** Средние по кадрам спектральный центроид и ширина (для п. 2–3, 4–6). */
     public record AvgSpectralFeatures(double centroidHz, double bandwidthHz) {}
 
     public static AvgSpectralFeatures averageSpectralFeatures(double[] signal, int sampleRate, int fftSize, int hopSize) {
@@ -70,7 +69,7 @@ public class Lab3AudioProcessor {
                         re += frameData[n] * Math.cos(angle);
                         im += frameData[n] * Math.sin(angle);
                     }
-                    spec[frame][k] = Math.sqrt(re * re + im * im);
+                    spec[frame][k] = re * re + im * im;
                 }
             } else {
                 double[] complex = new double[2 * fftSize];
@@ -82,7 +81,7 @@ public class Lab3AudioProcessor {
                 for (int k = 0; k < bins; k++) {
                     double re = complex[2 * k];
                     double im = complex[2 * k + 1];
-                    spec[frame][k] = Math.sqrt(re * re + im * im);
+                    spec[frame][k] = re * re + im * im;
                 }
             }
         }
