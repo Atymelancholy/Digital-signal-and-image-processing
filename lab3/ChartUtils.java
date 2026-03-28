@@ -288,6 +288,14 @@ public class ChartUtils {
     }
 
     public static JPanel createSpectrogramChartPanel(double[][] spectrogram, String title, int sampleRate, int hopSize) {
+        return createSpectrogramChartPanel(spectrogram, title, sampleRate, hopSize, null);
+    }
+
+    /**
+     * @param preferredSize если не null — компактный режим для сетки сравнения (например, 4 файла рядом).
+     */
+    public static JPanel createSpectrogramChartPanel(double[][] spectrogram, String title, int sampleRate, int hopSize,
+                                                     Dimension preferredSize) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(OFF_WHITE);
         panel.setBorder(BorderFactory.createCompoundBorder(
@@ -363,6 +371,11 @@ public class ChartUtils {
 
         panel.add(chartPanel, BorderLayout.CENTER);
         panel.add(rangeLabel, BorderLayout.SOUTH);
+        if (preferredSize != null) {
+            panel.setPreferredSize(preferredSize);
+            panel.setMinimumSize(new Dimension(Math.max(80, preferredSize.width / 2), Math.max(80, preferredSize.height / 2)));
+            chartPanel.setPreferredSize(new Dimension(preferredSize.width, preferredSize.height - 28));
+        }
         return panel;
     }
 
