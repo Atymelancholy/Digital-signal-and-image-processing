@@ -132,42 +132,6 @@ public class ChartUtils {
         }
     }
 
-    public static void applyMiniChartStyle(JFreeChart chart, Color c, boolean isPhasePlot) {
-        XYPlot plot = chart.getXYPlot();
-        plot.setBackgroundPaint(CREAM);
-        plot.setDomainGridlinePaint(new Color(240, 240, 240));
-        plot.setRangeGridlinePaint(new Color(240, 240, 240));
-        plot.setDomainGridlineStroke(new BasicStroke(0.2f));
-        plot.setRangeGridlineStroke(new BasicStroke(0.2f));
-
-        XYLineAndShapeRenderer renderer = isPhasePlot ? new XYLineAndShapeRenderer(false, true)
-                : new XYLineAndShapeRenderer(true, false);
-        renderer.setSeriesPaint(0, c);
-        if (isPhasePlot) {
-            renderer.setSeriesShape(0, new Ellipse2D.Double(-2, -2, 4, 4));
-        } else {
-            renderer.setSeriesStroke(0, new BasicStroke(0.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        }
-        plot.setRenderer(renderer);
-
-        plot.setOutlinePaint(MEDIUM_GRAY);
-        plot.setOutlineStroke(new BasicStroke(0.5f));
-
-        plot.getDomainAxis().setLabelFont(new Font("Arial", Font.PLAIN, 0));
-        plot.getDomainAxis().setTickLabelFont(new Font("Arial", Font.PLAIN, 0));
-        plot.getDomainAxis().setLabelPaint(new Color(0, 0, 0, 0));
-        plot.getDomainAxis().setTickLabelPaint(new Color(0, 0, 0, 0));
-        plot.getDomainAxis().setAxisLinePaint(new Color(0, 0, 0, 0));
-        plot.getDomainAxis().setTickMarkPaint(new Color(0, 0, 0, 0));
-
-        plot.getRangeAxis().setLabelFont(new Font("Arial", Font.PLAIN, 0));
-        plot.getRangeAxis().setTickLabelFont(new Font("Arial", Font.PLAIN, 0));
-        plot.getRangeAxis().setLabelPaint(new Color(0, 0, 0, 0));
-        plot.getRangeAxis().setTickLabelPaint(new Color(0, 0, 0, 0));
-        plot.getRangeAxis().setAxisLinePaint(new Color(0, 0, 0, 0));
-        plot.getRangeAxis().setTickMarkPaint(new Color(0, 0, 0, 0));
-    }
-
     public static JPanel createDynamicChartPanel(double[] data, String title, String xLabel, String yLabel,
                                                  Color color, boolean isTimeDomain, boolean isSpectrum) {
         JPanel mainPanel = new JPanel(new BorderLayout());
@@ -229,68 +193,6 @@ public class ChartUtils {
         return mainPanel;
     }
 
-    public static JPanel createMiniChartPanel(double[] data, String title, String xLabel, String yLabel,
-                                              Color color, boolean isTimeDomain, boolean isSpectrum) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBackground(OFF_WHITE);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(MEDIUM_GRAY, 1),
-                BorderFactory.createEmptyBorder(3, 3, 3, 3)));
-
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 8));
-        titleLabel.setForeground(DARK_BROWN);
-        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
-
-        XYSeries series = new XYSeries("Данные");
-        double dt = isTimeDomain ? (1.0 / SignalData.SAMPLE_RATE * 1000) : 1.0;
-        double scale = isSpectrum ? (SignalData.SAMPLE_RATE / (double) data.length) : 1.0;
-        int displayLength = isSpectrum ? data.length / 2 : data.length;
-        boolean isPhasePlot = (yLabel != null && yLabel.toLowerCase().contains("фаза"))
-                || (title != null && title.toLowerCase().contains("фаз"));
-        int step = isPhasePlot ? 1 : Math.max(1, displayLength / 200);
-
-        for (int i = 0; i < displayLength; i += step) {
-            double xValue = i * (isTimeDomain ? dt : scale);
-            double yValue = data[i];
-            if (!Double.isNaN(yValue) && !Double.isInfinite(yValue)) {
-                series.add(xValue, yValue);
-            }
-        }
-
-        XYSeriesCollection dataset = new XYSeriesCollection();
-        dataset.addSeries(series);
-
-        JFreeChart chart = ChartFactory.createXYLineChart(null, null, null, dataset,
-                PlotOrientation.VERTICAL, false, true, false);
-
-        applyMiniChartStyle(chart, color, isPhasePlot);
-
-        ChartPanel chartPanel = new ChartPanel(chart);
-        chartPanel.setBackground(CREAM);
-        chartPanel.setMouseWheelEnabled(true);
-        chartPanel.setRangeZoomable(true);
-        chartPanel.setDomainZoomable(true);
-        chartPanel.setDisplayToolTips(true);
-        chartPanel.setMinimumDrawWidth(0);
-        chartPanel.setMinimumDrawHeight(0);
-        chartPanel.setMaximumDrawWidth(Integer.MAX_VALUE);
-        chartPanel.setMaximumDrawHeight(Integer.MAX_VALUE);
-
-        panel.add(titleLabel, BorderLayout.NORTH);
-        panel.add(chartPanel, BorderLayout.CENTER);
-
-        panel.setPreferredSize(new Dimension(300, 180));
-        panel.setMinimumSize(new Dimension(300, 180));
-
-        return panel;
-    }
-
-    public static JPanel createSpectrogramChartPanel(double[][] spectrogram, String title, int sampleRate, int hopSize) {
-        return createSpectrogramChartPanel(spectrogram, title, sampleRate, hopSize, null);
-    }
-
     public static JPanel createSpectrogramChartPanel(double[][] spectrogram, String title, int sampleRate, int hopSize,
                                                      Dimension preferredSize) {
         JPanel panel = new JPanel(new BorderLayout());
@@ -344,6 +246,95 @@ public class ChartUtils {
         XYBlockRenderer renderer = new XYBlockRenderer();
         renderer.setBlockWidth(hopSize / (double) sampleRate);
         renderer.setBlockHeight((sampleRate / 2.0) / Math.max(1, bins - 1));
+        renderer.setPaintScale(createSpectrogramPaintScale(minDb, maxDb));
+
+        XYPlot plot = new XYPlot(dataset, xAxis, yAxis, renderer);
+        plot.setBackgroundPaint(CREAM);
+        plot.setDomainGridlinesVisible(false);
+        plot.setRangeGridlinesVisible(false);
+        plot.setOutlinePaint(MEDIUM_GRAY);
+        plot.setOutlineStroke(new BasicStroke(1.0f));
+
+        JFreeChart chart = new JFreeChart(title, new Font("Arial", Font.BOLD, 12), plot, false);
+        chart.setBackgroundPaint(OFF_WHITE);
+
+        ChartPanel chartPanel = new ChartPanel(chart);
+        chartPanel.setMouseWheelEnabled(true);
+        chartPanel.setRangeZoomable(true);
+        chartPanel.setDomainZoomable(true);
+
+        JLabel rangeLabel = new JLabel(String.format(Locale.US, "Диапазон: %.1f..%.1f дБ", minDb, maxDb));
+        rangeLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+        rangeLabel.setForeground(DARK_BROWN);
+        rangeLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 0, 4));
+
+        panel.add(chartPanel, BorderLayout.CENTER);
+        panel.add(rangeLabel, BorderLayout.SOUTH);
+        if (preferredSize != null) {
+            panel.setPreferredSize(preferredSize);
+            panel.setMinimumSize(new Dimension(Math.max(80, preferredSize.width / 2), Math.max(80, preferredSize.height / 2)));
+            chartPanel.setPreferredSize(new Dimension(preferredSize.width, preferredSize.height - 28));
+        }
+        return panel;
+    }
+
+    /**
+     * Мел-спектрограмма (ось Y — индекс мел-канала).
+     * Ожидается матрица формата [frames][melBins] в дБ.
+     */
+    public static JPanel createMelSpectrogramChartPanel(double[][] melDb, String title, int sampleRate, int hopSize,
+                                                        Dimension preferredSize) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(OFF_WHITE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(MEDIUM_GRAY, 1),
+                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+
+        int frames = melDb.length;
+        int bins = frames > 0 ? melDb[0].length : 0;
+        if (frames == 0 || bins == 0) {
+            panel.add(new JLabel("Нет данных для мел-спектрограммы", SwingConstants.CENTER), BorderLayout.CENTER);
+            return panel;
+        }
+
+        double[] x = new double[frames * bins];
+        double[] y = new double[frames * bins];
+        double[] z = new double[frames * bins];
+
+        double minDb = Double.POSITIVE_INFINITY;
+        double maxDb = Double.NEGATIVE_INFINITY;
+        int index = 0;
+        for (int t = 0; t < frames; t++) {
+            for (int m = 0; m < bins; m++) {
+                double db = melDb[t][m];
+                if (db < minDb) minDb = db;
+                if (db > maxDb) maxDb = db;
+                x[index] = t * (hopSize / (double) sampleRate);
+                y[index] = m;
+                z[index] = db;
+                index++;
+            }
+        }
+
+        DefaultXYZDataset dataset = new DefaultXYZDataset();
+        dataset.addSeries("Mel", new double[][]{x, y, z});
+
+        NumberAxis xAxis = new NumberAxis("Время, с");
+        NumberAxis yAxis = new NumberAxis("Mel-канал");
+        xAxis.setAutoRangeIncludesZero(true);
+        yAxis.setAutoRangeIncludesZero(true);
+        xAxis.setLabelFont(new Font("Arial", Font.PLAIN, 10));
+        yAxis.setLabelFont(new Font("Arial", Font.PLAIN, 10));
+        xAxis.setTickLabelFont(new Font("Arial", Font.PLAIN, 9));
+        yAxis.setTickLabelFont(new Font("Arial", Font.PLAIN, 9));
+        xAxis.setLabelPaint(DARK_BROWN);
+        yAxis.setLabelPaint(DARK_BROWN);
+        xAxis.setTickLabelPaint(WARM_GRAY);
+        yAxis.setTickLabelPaint(WARM_GRAY);
+
+        XYBlockRenderer renderer = new XYBlockRenderer();
+        renderer.setBlockWidth(hopSize / (double) sampleRate);
+        renderer.setBlockHeight(1.0);
         renderer.setPaintScale(createSpectrogramPaintScale(minDb, maxDb));
 
         XYPlot plot = new XYPlot(dataset, xAxis, yAxis, renderer);

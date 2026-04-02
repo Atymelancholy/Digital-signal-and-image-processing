@@ -5,12 +5,16 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
 
 public class Lab3MusicComparePanel extends JPanel {
     private static final int FFT_SIZE = 512;
     private static final int HOP_SIZE = 256;
     private static final Dimension SPEC_SIZE = new Dimension(340, 260);
+    private static final String LAB_ROOT_DIR_NAME = "Lab3_COSI_audio";
 
     private final JTextField[] genreFields = new JTextField[4];
     private final JTextField[] pathFields = new JTextField[4];
@@ -94,6 +98,7 @@ public class Lab3MusicComparePanel extends JPanel {
 
         AudioIOUtils.AudioData[] loaded = new AudioIOUtils.AudioData[4];
         Lab3AudioProcessor.AvgSpectralFeatures[] features = new Lab3AudioProcessor.AvgSpectralFeatures[4];
+        LibrosaBridge.Result[] librosa = new LibrosaBridge.Result[4];
         boolean[] readError = new boolean[4];
 
         for (int i = 0; i < 4; i++) {
@@ -105,6 +110,7 @@ public class Lab3MusicComparePanel extends JPanel {
                 loaded[i] = AudioIOUtils.readMonoWav(new File(path));
                 features[i] = Lab3AudioProcessor.averageSpectralFeatures(
                         loaded[i].samples(), loaded[i].sampleRate(), FFT_SIZE, HOP_SIZE);
+                librosa[i] = analyzeWithLibrosa(path);
             } catch (UnsupportedAudioFileException | IOException ex) {
                 readError[i] = true;
             }
@@ -116,7 +122,7 @@ public class Lab3MusicComparePanel extends JPanel {
         columnsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         for (int i = 0; i < 4; i++) {
-            columnsRow.add(buildColumnPanel(i, loaded[i], features[i], readError[i]));
+            columnsRow.add(buildColumnPanel(i, loaded[i], features[i], librosa[i], readError[i]));
         }
 
         comparisonGrid.add(columnsRow);
@@ -125,7 +131,9 @@ public class Lab3MusicComparePanel extends JPanel {
     }
 
     private JPanel buildColumnPanel(int index, AudioIOUtils.AudioData data,
-                                    Lab3AudioProcessor.AvgSpectralFeatures features, boolean readError) {
+                                    Lab3AudioProcessor.AvgSpectralFeatures features,
+                                    LibrosaBridge.Result librosa,
+                                    boolean readError) {
         JPanel col = new JPanel();
         col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
         col.setBackground(ChartUtils.CREAM);
@@ -175,15 +183,25 @@ public class Lab3MusicComparePanel extends JPanel {
         col.add(Box.createVerticalStrut(6));
         col.add(bTitle);
         col.add(bVal);
-        col.add(Box.createVerticalStrut(10));
+        col.add(Box.createVerticalStrut(8));
+
+        col.add(subsectionTitle("Спектральные признаки (librosa)"));
+        col.add(Box.createVerticalStrut(4));
+        col.add(metricValue("SC (центроид): " + librosaValue(librosa, "centroid")));
+        col.add(metricValue("SR (спад 85%): " + librosaValue(librosa, "rolloff")));
+        col.add(metricValue("SB (ширина): " + librosaValue(librosa, "bandwidth")));
+        col.add(metricValue("ZCR: " + librosaValue(librosa, "zcr")));
+        col.add(Box.createVerticalStrut(8));
+
+        col.add(Box.createVerticalStrut(2));
 
         col.add(subsectionTitle("Самописная спектрограмма (DFT + Ханн)"));
         col.add(Box.createVerticalStrut(4));
         col.add(wrapChartCentered(spectrogramChart(data, true)));
         col.add(Box.createVerticalStrut(8));
-        col.add(subsectionTitle("Библиотечная спектрограмма (JTransforms)"));
+        col.add(subsectionTitle("Мел-спектрограмма (librosa)"));
         col.add(Box.createVerticalStrut(4));
-        col.add(wrapChartCentered(spectrogramChart(data, false)));
+        col.add(wrapChartCentered(melSpectrogramChart(librosa)));
 
         return col;
     }
@@ -230,5 +248,56 @@ public class Lab3MusicComparePanel extends JPanel {
                 : Lab3AudioProcessor.spectrogramLibrary(signal, FFT_SIZE, HOP_SIZE);
         String title = manual ? "Самописная" : "Библиотечная";
         return ChartUtils.createSpectrogramChartPanel(spec, title, sr, HOP_SIZE, SPEC_SIZE);
+    }
+
+    private JPanel melSpectrogramChart(LibrosaBridge.Result librosa) {
+        if (librosa == null || librosa.melDb() == null) {
+            JPanel empty = new JPanel(new BorderLayout());
+            empty.setBackground(ChartUtils.OFF_WHITE);
+            empty.setBorder(BorderFactory.createLineBorder(ChartUtils.MEDIUM_GRAY));
+            empty.setPreferredSize(SPEC_SIZE);
+            empty.setMinimumSize(SPEC_SIZE);
+            String text = (librosa != null && librosa.error() != null && !librosa.error().isBlank())
+                    ? "<html><div style='text-align:center'>librosa недоступна<br/><small>" + escapeHtml(librosa.error()) + "</small></div></html>"
+                    : "—";
+            empty.add(new JLabel(text, SwingConstants.CENTER), BorderLayout.CENTER);
+            return empty;
+        }
+        return ChartUtils.createMelSpectrogramChartPanel(
+                librosa.melDb(),
+                "Mel (librosa)",
+                librosa.sampleRate(),
+                librosa.hopLength() > 0 ? librosa.hopLength() : 512,
+                SPEC_SIZE
+        );
+    }
+
+    private LibrosaBridge.Result analyzeWithLibrosa(String wavPath) {
+        try {
+            Path root = Paths.get(System.getProperty("user.home", ".")).resolve(LAB_ROOT_DIR_NAME);
+            Path cacheDir = root.resolve("music_librosa_cache");
+            Files.createDirectories(cacheDir);
+            String safeName = new File(wavPath).getName().replaceAll("[^a-zA-Z0-9._-]", "_");
+            Path json = cacheDir.resolve(safeName + ".json");
+            return LibrosaBridge.analyzeWavWithLibrosa(wavPath, json);
+        } catch (Exception ex) {
+            return new LibrosaBridge.Result(0, 0, null, 0, 0, 0, 0, ex.getMessage());
+        }
+    }
+
+    private String librosaValue(LibrosaBridge.Result r, String key) {
+        if (r == null) return "—";
+        if (r.error() != null && !r.error().isBlank()) return "ошибка";
+        return switch (key) {
+            case "centroid" -> String.format(Locale.US, "%.1f Гц", r.centroidHz());
+            case "rolloff" -> String.format(Locale.US, "%.1f Гц", r.rolloffHz());
+            case "bandwidth" -> String.format(Locale.US, "%.1f Гц", r.bandwidthHz());
+            case "zcr" -> String.format(Locale.US, "%.4f", r.zcr());
+            default -> "—";
+        };
+    }
+
+    private static String escapeHtml(String s) {
+        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }

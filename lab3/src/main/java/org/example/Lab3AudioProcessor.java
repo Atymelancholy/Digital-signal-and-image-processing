@@ -4,7 +4,12 @@ import org.jtransforms.fft.DoubleFFT_1D;
 
 import java.util.Arrays;
 
-public class Lab3AudioProcessor {
+public class
+
+
+
+
+Lab3AudioProcessor {
 
     public record AvgSpectralFeatures(double centroidHz, double bandwidthHz) {}
 
@@ -69,7 +74,7 @@ public class Lab3AudioProcessor {
                         re += frameData[n] * Math.cos(angle);
                         im += frameData[n] * Math.sin(angle);
                     }
-                    spec[frame][k] = re * re + im * im;
+                    spec[frame][k] = Math.sqrt(re * re + im * im);
                 }
             } else {
                 double[] complex = new double[2 * fftSize];
@@ -81,7 +86,7 @@ public class Lab3AudioProcessor {
                 for (int k = 0; k < bins; k++) {
                     double re = complex[2 * k];
                     double im = complex[2 * k + 1];
-                    spec[frame][k] = re * re + im * im;
+                    spec[frame][k] = Math.sqrt(re * re + im * im);
                 }
             }
         }

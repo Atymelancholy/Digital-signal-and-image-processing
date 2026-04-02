@@ -34,7 +34,21 @@ public class Lab3VoicePanel extends JPanel {
     private final JTextArea infoArea = new JTextArea();
 
     private final DefaultTableModel metricsModel = new DefaultTableModel(
-            new Object[]{"SNR вход, дБ", "SNR, дБ", "SI-SDR, дБ", "SNR (после DFN2)", "SI-SDR (после DFN2)"}, 0);
+            new Object[]{
+                    "SNR вход, дБ",
+                    "SNR (ручн.), дБ",
+                    "SI-SDR (ручн.), дБ",
+                    "SNR (lib), дБ",
+                    "SDR (lib), дБ",
+                    "SI-SDR (lib), дБ",
+                    "PESQ (lib)",
+                    "SNR DFN (ручн.), дБ",
+                    "SI-SDR DFN (ручн.), дБ",
+                    "SNR DFN (lib), дБ",
+                    "SDR DFN (lib), дБ",
+                    "SI-SDR DFN (lib), дБ",
+                    "PESQ DFN (lib)"
+            }, 0);
 
     private File lastMixedFile;
     private final List<MixedCase> mixedCases = new ArrayList<>();
@@ -213,6 +227,10 @@ public class Lab3VoicePanel extends JPanel {
                     formatDouble(snrValue),
                     formatDouble(siSdrValue),
                     "—",
+                    "—",
+                    "—",
+                    "—",
+                    "—",
                     "—"
             });
             try {
@@ -242,6 +260,51 @@ public class Lab3VoicePanel extends JPanel {
             infoArea.append("\nМикс SNR=6: " + lastMixedFile.getAbsolutePath());
         }
         infoArea.append("\nПосле фильтра (DFN): " + denoisedDir().toAbsolutePath());
+
+        computeLibraryMetricsForMixed();
+    }
+
+    private Path metricsCacheDir() {
+        return labRoot().resolve("metrics_cache");
+    }
+
+    private void computeLibraryMetricsForMixed() {
+        String refPath = cleanPathField.getText().trim();
+        if (refPath.isEmpty() || mixedCases.isEmpty()) {
+            return;
+        }
+        Path cacheDir = metricsCacheDir();
+        SwingWorker<Void, String> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                for (MixedCase c : mixedCases) {
+                    try {
+                        String deg = c.mixedFile().getAbsolutePath();
+                        Path json = cacheDir.resolve("mixed_snr" + c.snrInputDb() + ".json");
+                        AudioMetricsBridge.Result r = AudioMetricsBridge.evaluate(refPath, deg, json);
+                        int row = c.rowIndex();
+                        SwingUtilities.invokeLater(() -> {
+                            metricsModel.setValueAt(formatNullable(r.snrDb()), row, 3);
+                            metricsModel.setValueAt(formatNullable(r.sdrDb()), row, 4);
+                            metricsModel.setValueAt(formatNullable(r.siSdrDb()), row, 5);
+                            metricsModel.setValueAt(formatNullable(r.pesqMos()), row, 6);
+                        });
+                        if (r.error() != null && !r.error().isBlank()) {
+                            publish("Метрики(lib) SNR вход=" + c.snrInputDb() + ": " + r.error());
+                        }
+                    } catch (Exception ex) {
+                        publish("Метрики(lib) SNR вход=" + c.snrInputDb() + ": исключение: " + ex.getMessage());
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void process(List<String> chunks) {
+                for (String s : chunks) appendInfo(s);
+            }
+        };
+        worker.execute();
     }
 
     private void updateFeaturesInfo(double[] signal, int sampleRate) {
@@ -329,9 +392,28 @@ public class Lab3VoicePanel extends JPanel {
 
                         int row = c.rowIndex();
                         SwingUtilities.invokeLater(() -> {
-                            metricsModel.setValueAt(formatDouble(snr), row, 3);
-                            metricsModel.setValueAt(formatDouble(siSdr), row, 4);
+                            metricsModel.setValueAt(formatDouble(snr), row, 7);
+                            metricsModel.setValueAt(formatDouble(siSdr), row, 8);
                         });
+
+                        try {
+                            String refPath = cleanPathField.getText().trim();
+                            if (!refPath.isEmpty()) {
+                                Path json = metricsCacheDir().resolve("denoised_snr" + c.snrInputDb() + ".json");
+                                AudioMetricsBridge.Result mr = AudioMetricsBridge.evaluate(refPath, outWavPath.toString(), json);
+                                SwingUtilities.invokeLater(() -> {
+                                    metricsModel.setValueAt(formatNullable(mr.snrDb()), row, 9);
+                                    metricsModel.setValueAt(formatNullable(mr.sdrDb()), row, 10);
+                                    metricsModel.setValueAt(formatNullable(mr.siSdrDb()), row, 11);
+                                    metricsModel.setValueAt(formatNullable(mr.pesqMos()), row, 12);
+                                });
+                                if (mr.error() != null && !mr.error().isBlank()) {
+                                    publish("Метрики(lib) DFN SNR вход=" + c.snrInputDb() + ": " + mr.error());
+                                }
+                            }
+                        } catch (Exception ex) {
+                            publish("Метрики(lib) DFN SNR вход=" + c.snrInputDb() + ": исключение: " + ex.getMessage());
+                        }
 
                         publish("SNR вход=" + c.snrInputDb() + " • готово: SNR=" + formatDouble(snr) + ", SI-SDR=" + formatDouble(siSdr));
                     } catch (Exception ex) {
@@ -364,6 +446,11 @@ public class Lab3VoicePanel extends JPanel {
 
     private String formatDouble(double value) {
         return String.format(Locale.US, "%.3f", value);
+    }
+
+    private String formatNullable(Double v) {
+        if (v == null || v.isNaN() || v.isInfinite()) return "—";
+        return String.format(Locale.US, "%.3f", v);
     }
 
     private void appendInfo(String text) {
