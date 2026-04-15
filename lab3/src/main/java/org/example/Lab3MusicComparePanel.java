@@ -70,11 +70,16 @@ public class Lab3MusicComparePanel extends JPanel {
             gbc.gridx = 3;
             gbc.weightx = 0;
             panel.add(pick, gbc);
+
+            JButton chartsBtn = new JButton("Графики…");
+            chartsBtn.addActionListener(e -> showCharacteristicsWindow(idx));
+            gbc.gridx = 4;
+            panel.add(chartsBtn, gbc);
         }
 
         gbc.gridy = 4;
         gbc.gridx = 0;
-        gbc.gridwidth = 4;
+        gbc.gridwidth = 5;
         JButton run = new JButton("Показать сравнение");
         run.addActionListener(e -> showComparison());
         panel.add(run, gbc);
@@ -206,6 +211,80 @@ public class Lab3MusicComparePanel extends JPanel {
         return col;
     }
 
+    private void showCharacteristicsWindow(int index) {
+        String path = pathFields[index].getText().trim();
+        if (path.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Сначала выберите WAV для файла " + (index + 1) + ".");
+            return;
+        }
+
+        try {
+            AudioIOUtils.AudioData audio = AudioIOUtils.readMonoWav(new File(path));
+            LibrosaBridge.Result librosa = analyzeWithLibrosa(path);
+            if (librosa.error() != null && !librosa.error().isBlank()) {
+                JOptionPane.showMessageDialog(this, "Ошибка librosa: " + librosa.error());
+                return;
+            }
+
+            double[] centroidManual = manualCentroidSeries(audio.samples(), audio.sampleRate());
+            double[] bandwidthManual = manualBandwidthSeries(audio.samples(), audio.sampleRate());
+
+            double[] centroidLib = librosa.centroidSeriesHz();
+            double[] bandwidthLib = librosa.bandwidthSeriesHz();
+            double[] rolloffLib = librosa.rolloffSeriesHz();
+            double[] zcrLib = librosa.zcrSeries();
+            double[] tManual = frameTimeAxis(centroidManual.length, audio.sampleRate(), HOP_SIZE);
+            int libHop = librosa.hopLength() > 0 ? librosa.hopLength() : HOP_SIZE;
+            double[] tLibCentroid = frameTimeAxis(nonNullSeries(centroidLib).length, audio.sampleRate(), libHop);
+            double[] tLibBandwidth = frameTimeAxis(nonNullSeries(bandwidthLib).length, audio.sampleRate(), libHop);
+            double[] tLibRolloff = frameTimeAxis(nonNullSeries(rolloffLib).length, audio.sampleRate(), libHop);
+            double[] tLibZcr = frameTimeAxis(nonNullSeries(zcrLib).length, audio.sampleRate(), libHop);
+
+            String genre = genreFields[index].getText().trim();
+            if (genre.isEmpty()) genre = "файл " + (index + 1);
+            String shortName = new File(path).getName();
+
+            JFrame frame = new JFrame("Характеристики: " + genre + " (" + shortName + ")");
+            frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            frame.setSize(1500, 900);
+            frame.setLocationRelativeTo(this);
+
+            JPanel grid = new JPanel(new GridLayout(3, 2, 8, 8));
+            grid.setBackground(ChartUtils.LIGHT_BEIGE);
+            grid.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+            grid.add(ChartUtils.createXYSeriesChartPanel(
+                    tManual, centroidManual, "Центроид (самописный)", "Время, с", "Гц",
+                    ChartUtils.FOREST_GREEN));
+            grid.add(ChartUtils.createXYSeriesChartPanel(
+                    tLibCentroid, nonNullSeries(centroidLib), "Центроид (librosa)", "Время, с", "Гц",
+                    ChartUtils.SLATE_BLUE));
+
+            grid.add(ChartUtils.createXYSeriesChartPanel(
+                    tManual, bandwidthManual, "Ширина (самописная)", "Время, с", "Гц",
+                    ChartUtils.EARTH_GREEN));
+            grid.add(ChartUtils.createXYSeriesChartPanel(
+                    tLibBandwidth, nonNullSeries(bandwidthLib), "Ширина (librosa)", "Время, с", "Гц",
+                    ChartUtils.TERRA_COTTA));
+
+            grid.add(ChartUtils.createXYSeriesChartPanel(
+                    tLibRolloff, nonNullSeries(rolloffLib), "Спад / Rolloff (librosa)", "Время, с", "Гц",
+                    ChartUtils.DARK_SLATE));
+            grid.add(ChartUtils.createXYSeriesChartPanel(
+                    tLibZcr, nonNullSeries(zcrLib), "Пересечение нуля / ZCR (librosa)", "Время, с", "Доля",
+                    ChartUtils.WARM_GRAY));
+
+            frame.setContentPane(grid);
+            frame.setVisible(true);
+        } catch (UnsupportedAudioFileException | IOException ex) {
+            JOptionPane.showMessageDialog(this, "Ошибка чтения WAV: " + ex.getMessage(),
+                    "Ошибка", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Не удалось построить графики: " + ex.getMessage(),
+                    "Ошибка", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private JLabel subsectionTitle(String text) {
         JLabel l = new JLabel("<html><div style='text-align:center'>" + text + "</div></html>");
         l.setFont(new Font("Arial", Font.BOLD, 11));
@@ -281,8 +360,40 @@ public class Lab3MusicComparePanel extends JPanel {
             Path json = cacheDir.resolve(safeName + ".json");
             return LibrosaBridge.analyzeWavWithLibrosa(wavPath, json);
         } catch (Exception ex) {
-            return new LibrosaBridge.Result(0, 0, null, 0, 0, 0, 0, ex.getMessage());
+            return new LibrosaBridge.Result(0, 0, null, 0, 0, 0, 0, null, null, null, null, ex.getMessage());
         }
+    }
+
+    private double[] manualCentroidSeries(double[] signal, int sampleRate) {
+        double[][] spec = Lab3AudioProcessor.spectrogramManual(signal, FFT_SIZE, HOP_SIZE);
+        double[] out = new double[spec.length];
+        for (int i = 0; i < spec.length; i++) {
+            out[i] = Lab3AudioProcessor.spectralCentroid(spec[i], sampleRate, FFT_SIZE);
+        }
+        return out;
+    }
+
+    private double[] manualBandwidthSeries(double[] signal, int sampleRate) {
+        double[][] spec = Lab3AudioProcessor.spectrogramManual(signal, FFT_SIZE, HOP_SIZE);
+        double[] out = new double[spec.length];
+        for (int i = 0; i < spec.length; i++) {
+            double c = Lab3AudioProcessor.spectralCentroid(spec[i], sampleRate, FFT_SIZE);
+            out[i] = Lab3AudioProcessor.spectralBandwidth(spec[i], sampleRate, FFT_SIZE, c);
+        }
+        return out;
+    }
+
+    private double[] nonNullSeries(double[] series) {
+        if (series == null || series.length == 0) return new double[]{0.0};
+        return series;
+    }
+
+    private double[] frameTimeAxis(int frames, int sampleRate, int hopSize) {
+        if (frames <= 0 || sampleRate <= 0 || hopSize <= 0) return new double[]{0.0};
+        double[] t = new double[frames];
+        double dt = hopSize / (double) sampleRate;
+        for (int i = 0; i < frames; i++) t[i] = i * dt;
+        return t;
     }
 
     private String librosaValue(LibrosaBridge.Result r, String key) {

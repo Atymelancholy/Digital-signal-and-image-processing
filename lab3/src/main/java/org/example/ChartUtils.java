@@ -193,6 +193,57 @@ public class ChartUtils {
         return mainPanel;
     }
 
+    /**
+     * График по произвольным осям X/Y (например, признаки по времени).
+     */
+    public static JPanel createXYSeriesChartPanel(double[] xData, double[] yData, String title, String xLabel, String yLabel,
+                                                  Color color) {
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(OFF_WHITE);
+        mainPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(MEDIUM_GRAY, 1),
+                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+
+        JLabel chartTitle = new JLabel(title);
+        chartTitle.setFont(new Font("Arial", Font.BOLD, 11));
+        chartTitle.setForeground(DARK_BROWN);
+        chartTitle.setBorder(BorderFactory.createEmptyBorder(0, 5, 5, 5));
+
+        XYSeries fullSeries = new XYSeries("Данные");
+        int n = Math.min(xData == null ? 0 : xData.length, yData == null ? 0 : yData.length);
+        for (int i = 0; i < n; i++) {
+            double x = xData[i];
+            double y = yData[i];
+            if (!Double.isNaN(x) && !Double.isInfinite(x) && !Double.isNaN(y) && !Double.isInfinite(y)) {
+                fullSeries.add(x, y);
+            }
+        }
+
+        XYSeriesCollection fullDataset = new XYSeriesCollection();
+        fullDataset.addSeries(fullSeries);
+
+        JFreeChart fullChart = ChartFactory.createXYLineChart(title, xLabel, yLabel, fullDataset,
+                PlotOrientation.VERTICAL, true, true, false);
+        applyChartStyle(fullChart, color);
+
+        ChartPanel fullChartPanel = new ChartPanel(fullChart);
+        fullChartPanel.setBackground(CREAM);
+        fullChartPanel.setMouseWheelEnabled(true);
+        fullChartPanel.setRangeZoomable(true);
+        fullChartPanel.setDomainZoomable(true);
+        fullChartPanel.setDisplayToolTips(true);
+
+        JPanel controlPanel = createNavigationControlPanel(fullChartPanel);
+        controlPanel.setPreferredSize(new Dimension(controlPanel.getPreferredSize().width, 35));
+        controlPanel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+
+        mainPanel.add(chartTitle, BorderLayout.NORTH);
+        mainPanel.add(fullChartPanel, BorderLayout.CENTER);
+        mainPanel.add(controlPanel, BorderLayout.SOUTH);
+
+        return mainPanel;
+    }
+
     public static JPanel createSpectrogramChartPanel(double[][] spectrogram, String title, int sampleRate, int hopSize,
                                                      Dimension preferredSize) {
         JPanel panel = new JPanel(new BorderLayout());

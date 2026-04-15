@@ -27,6 +27,10 @@ def main():
         "rolloff_hz": 0.0,
         "bandwidth_hz": 0.0,
         "zcr": 0.0,
+        "centroid_series_hz": None,
+        "rolloff_series_hz": None,
+        "bandwidth_series_hz": None,
+        "zcr_series": None,
         "error": None,
     }
 
@@ -69,6 +73,10 @@ def main():
         payload["rolloff_hz"] = float(np.mean(rolloff))
         payload["bandwidth_hz"] = float(np.mean(bandwidth))
         payload["zcr"] = float(np.mean(zcr))
+        payload["centroid_series_hz"] = centroid.squeeze(0).tolist()
+        payload["rolloff_series_hz"] = rolloff.squeeze(0).tolist()
+        payload["bandwidth_series_hz"] = bandwidth.squeeze(0).tolist()
+        payload["zcr_series"] = zcr.squeeze(0).tolist()
     except Exception as e:
         payload["error"] = str(e)
 
