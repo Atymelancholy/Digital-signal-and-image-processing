@@ -23,29 +23,56 @@ public class Lab4Panel extends JPanel {
     private static final String LAB_ROOT_DIR_NAME = "Lab4_COSI_tts_vc";
     private static final DateTimeFormatter TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
-    private final JTextArea ttsTextArea = new JTextArea(
-            "Здравствуйте! Это демонстрация синтеза речи для лабораторной работы номер четыре.");
-    private final JTextField ttsCommandField = new JTextField(
-            "py -3.11 python\\lab4_tts.py --text \"{text}\" --out \"{out}\"");
-    private final JTextField ttsOutField = new JTextField();
+    /** Path to the venv python created by python\setup_cosyvoice.bat (relative to project root). */
+    private static final String VENV_PYTHON = "python\\.cosyvenv\\Scripts\\python.exe";
 
+    private static final String[] SFT_SPEAKERS = {
+            "中文女", "中文男", "日语男", "粤语女", "英文女", "英文男", "韩语女"
+    };
+
+    // ---- TTS-SFT controls ----
+    private final JTextArea sftTextArea = new JTextArea(
+            "Hello, this is the CosyVoice synthesizer running on a fine-tuned 300M model.");
+    private final JComboBox<String> sftSpeakerCombo = new JComboBox<>(SFT_SPEAKERS);
+    private final JTextField sftOutField = new JTextField();
+    private final JTextField sftCommandField = new JTextField(
+            VENV_PYTHON + " python\\lab4_tts.py --mode sft --speaker \"{speaker}\" --text \"{text}\" --out \"{out}\"");
+
+    // ---- TTS Zero-Shot controls ----
+    private final JTextArea zsTextArea = new JTextArea("Текст, который надо озвучить голосом из эталонного аудио.");
+    private final JTextField zsPromptAudioField = new JTextField();
+    private final JTextArea zsPromptTextArea = new JTextArea("Текст, произнесённый в эталонном аудио.");
+    private final JTextField zsOutField = new JTextField();
+    private final JTextField zsCommandField = new JTextField(
+            VENV_PYTHON + " python\\lab4_tts.py --mode zero_shot --text \"{text}\""
+                    + " --prompt-audio \"{prompt_audio}\" --prompt-text \"{prompt_text}\" --out \"{out}\"");
+
+    // ---- VC controls (kNN-VC) ----
     private final JTextField srcVoiceField = new JTextField();
     private final JTextField tgtVoiceField = new JTextField();
+    private final JTextField vocoderCkptField = new JTextField();
     private final JTextField vcOutField = new JTextField();
-    private final JTextField cosyVcCommandField = new JTextField(
-            "py -3.11 python\\lab4_vc.py --backend keepwords --mode cosy --src \"{src}\" --tgt \"{tgt}\" --out \"{out}\"");
     private final JTextField knnVcCommandField = new JTextField(
-            "py -3.11 python\\lab4_vc.py --backend keepwords --mode knn --src \"{src}\" --tgt \"{tgt}\" --out \"{out}\"");
-    private final JComboBox<String> modelCombo = new JComboBox<>(new String[]{"CosyVoice3", "kNN-VC"});
-    private final JTextField minLenField = new JTextField("1,2,3,5");
+            VENV_PYTHON + " python\\lab4_vc.py --mode knn --src \"{src}\" --tgt \"{tgt}\" --out \"{out}\"");
 
-    private final JTextArea reportArea = new JTextArea();
+    // ---- Experiments controls ----
+    private final JTextField minLenField = new JTextField("1,2,3,5");
+    private final JTextArea srcTextForCompare = new JTextArea("Что говорится в исходной записи (для CosyVoice zero-shot).");
+    private final JTextArea tgtTextForCompare = new JTextArea("Что говорится в целевой записи (для CosyVoice zero-shot).");
+    private final JTextField cosyVcCommandField = new JTextField(
+            VENV_PYTHON + " python\\lab4_vc.py --mode cosy --src \"{src}\" --tgt \"{tgt}\""
+                    + " --src-text \"{src_text}\" --tgt-text \"{tgt_text}\" --out \"{out}\"");
+
+    private final JTextArea experimentFilesArea = new JTextArea();
     private final JTextArea logArea = new JTextArea();
 
     private final DefaultTableModel experimentsModel = new DefaultTableModel(
             new Object[]{
                     "Эксперимент",
                     "Модель",
+                    "Source WAV",
+                    "Ref/target для обработки",
+                    "Target для метрик",
                     "Длина ref, c",
                     "Время, c",
                     "Схожесть с target",
@@ -61,77 +88,180 @@ public class Lab4Panel extends JPanel {
         JTabbedPane tabs = new JTabbedPane();
         tabs.setBackground(ChartUtils.OFF_WHITE);
         tabs.setFont(new Font("Arial", Font.PLAIN, 12));
-        tabs.addTab("П.1 TTS", buildTtsTab());
-        tabs.addTab("П.2 VC", buildVcTab());
+        tabs.addTab("П.1 TTS (CosyVoice)", buildTtsTab());
+        tabs.addTab("П.2 VC (kNN-VC)", buildVcTab());
         tabs.addTab("П.2.2–2.4 Эксперименты", buildExperimentsTab());
-        tabs.addTab("Отчет", buildReportTab());
 
         add(tabs, BorderLayout.CENTER);
     }
+
+    // ===================================================================
+    //  TTS tab — two sub-tabs: SFT and Zero-Shot
+    // ===================================================================
 
     private JPanel buildTtsTab() {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
         panel.setBackground(ChartUtils.LIGHT_BEIGE);
 
+        JTabbedPane sub = new JTabbedPane();
+        sub.setBackground(ChartUtils.OFF_WHITE);
+        sub.setFont(new Font("Arial", Font.PLAIN, 12));
+        sub.addTab("SFT (фиксированные голоса)", buildSftSubTab());
+        sub.addTab("Zero-Shot (клонирование)", buildZeroShotSubTab());
+
+        panel.add(sub, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel buildSftSubTab() {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.setBackground(ChartUtils.LIGHT_BEIGE);
+
         JPanel controls = new JPanel(new GridBagLayout());
         controls.setBackground(ChartUtils.CREAM);
-        controls.setBorder(BorderFactory.createTitledBorder("П.1 Озвучивание текста (CosyVoice3 или аналог)"));
+        controls.setBorder(BorderFactory.createTitledBorder(
+                "CosyVoice-300M-SFT — синтез текста готовым голосом"));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(4, 4, 4, 4);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        ttsTextArea.setLineWrap(true);
-        ttsTextArea.setWrapStyleWord(true);
-        JScrollPane textScroll = new JScrollPane(ttsTextArea);
-        textScroll.setPreferredSize(new Dimension(300, 120));
+        sftTextArea.setLineWrap(true);
+        sftTextArea.setWrapStyleWord(true);
+        JScrollPane textScroll = new JScrollPane(sftTextArea);
+        textScroll.setPreferredSize(new Dimension(300, 100));
 
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 0;
+        int row = 0;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
         controls.add(new JLabel("Текст:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
         controls.add(textScroll, gbc);
+        gbc.gridwidth = 1;
 
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.weightx = 0;
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        controls.add(new JLabel("Голос (speaker):"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        controls.add(sftSpeakerCombo, gbc);
+
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
         controls.add(new JLabel("Команда TTS:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        controls.add(ttsCommandField, gbc);
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
+        controls.add(sftCommandField, gbc);
+        gbc.gridwidth = 1;
 
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.weightx = 0;
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
         controls.add(new JLabel("Выходной WAV:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        controls.add(ttsOutField, gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        controls.add(sftOutField, gbc);
         JButton outBtn = new JButton("Сохранить как…");
-        outBtn.addActionListener(e -> chooseSavePath(ttsOutField));
-        gbc.gridx = 2;
-        gbc.weightx = 0;
+        outBtn.addActionListener(e -> chooseSavePath(sftOutField));
+        gbc.gridx = 2; gbc.weightx = 0;
         controls.add(outBtn, gbc);
 
-        JButton runTtsBtn = new JButton("Озвучить текст");
-        runTtsBtn.addActionListener(e -> runTts());
-        gbc.gridx = 0;
-        gbc.gridy = 3;
-        gbc.gridwidth = 3;
-        controls.add(runTtsBtn, gbc);
+        row++;
+        JButton runBtn = new JButton("Озвучить (SFT)");
+        runBtn.addActionListener(e -> runTtsSft());
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 3;
+        controls.add(runBtn, gbc);
 
         panel.add(controls, BorderLayout.NORTH);
-        panel.add(new JScrollPane(createDescriptionArea(
-                """
-                        Что делает вкладка:
-                        - Запускает внешний пайплайн TTS командой из поля "Команда TTS".
-                        - Поддерживает шаблоны {text} и {out}.
-                        - Результат можно использовать для оценки естественности (MOS) и корректности содержания.
-                        """)), BorderLayout.CENTER);
+        panel.add(new JScrollPane(createDescriptionArea("""
+                Эта вкладка использует FunAudioLLM/CosyVoice-300M-SFT.
+                Голоса берутся из встроенного списка диктаторов модели.
+                Перед первым запуском выполните python\\setup_cosyvoice.bat
+                — он скачивает модель и устанавливает CUDA-Python окружение.
+                Шаблоны команды: {text}, {speaker}, {out}.
+                """)), BorderLayout.CENTER);
         return panel;
     }
+
+    private JPanel buildZeroShotSubTab() {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.setBackground(ChartUtils.LIGHT_BEIGE);
+
+        JPanel controls = new JPanel(new GridBagLayout());
+        controls.setBackground(ChartUtils.CREAM);
+        controls.setBorder(BorderFactory.createTitledBorder(
+                "CosyVoice-300M Zero-Shot — клонирование голоса по короткому эталону"));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 4, 4, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        zsTextArea.setLineWrap(true);
+        zsTextArea.setWrapStyleWord(true);
+        JScrollPane synthTextScroll = new JScrollPane(zsTextArea);
+        synthTextScroll.setPreferredSize(new Dimension(300, 80));
+
+        zsPromptTextArea.setLineWrap(true);
+        zsPromptTextArea.setWrapStyleWord(true);
+        JScrollPane promptTextScroll = new JScrollPane(zsPromptTextArea);
+        promptTextScroll.setPreferredSize(new Dimension(300, 60));
+
+        int row = 0;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        controls.add(new JLabel("Текст для синтеза:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
+        controls.add(synthTextScroll, gbc);
+        gbc.gridwidth = 1;
+
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        controls.add(new JLabel("Эталонное аудио:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        controls.add(zsPromptAudioField, gbc);
+        JButton promptBtn = new JButton("WAV…");
+        promptBtn.addActionListener(e -> chooseOpenPath(zsPromptAudioField));
+        gbc.gridx = 2; gbc.weightx = 0;
+        controls.add(promptBtn, gbc);
+
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        controls.add(new JLabel("Текст эталона:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
+        controls.add(promptTextScroll, gbc);
+        gbc.gridwidth = 1;
+
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        controls.add(new JLabel("Команда TTS:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
+        controls.add(zsCommandField, gbc);
+        gbc.gridwidth = 1;
+
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        controls.add(new JLabel("Выходной WAV:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        controls.add(zsOutField, gbc);
+        JButton outBtn = new JButton("Сохранить как…");
+        outBtn.addActionListener(e -> chooseSavePath(zsOutField));
+        gbc.gridx = 2; gbc.weightx = 0;
+        controls.add(outBtn, gbc);
+
+        row++;
+        JButton runBtn = new JButton("Клонировать голос (Zero-Shot)");
+        runBtn.addActionListener(e -> runTtsZeroShot());
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 3;
+        controls.add(runBtn, gbc);
+
+        panel.add(controls, BorderLayout.NORTH);
+        panel.add(new JScrollPane(createDescriptionArea("""
+                Zero-Shot режим CosyVoice-300M: модель клонирует тембр диктатора
+                из эталонного аудио (5–15 секунд достаточно) и произносит
+                заданный текст этим голосом. Лучше всего работает, если в поле
+                "Текст эталона" указано именно то, что произнесено в WAV.
+                Шаблоны команды: {text}, {prompt_audio}, {prompt_text}, {out}.
+                """)), BorderLayout.CENTER);
+        return panel;
+    }
+
+    // ===================================================================
+    //  VC tab — kNN-VC only (with optional fine-tuned vocoder)
+    // ===================================================================
 
     private JPanel buildVcTab() {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
@@ -139,7 +269,8 @@ public class Lab4Panel extends JPanel {
 
         JPanel controls = new JPanel(new GridBagLayout());
         controls.setBackground(ChartUtils.CREAM);
-        controls.setBorder(BorderFactory.createTitledBorder("П.2 Преобразование голоса (CosyVoice3 / kNN-VC)"));
+        controls.setBorder(BorderFactory.createTitledBorder(
+                "kNN-VC (bshall/knn-vc) — преобразование голоса"));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(4, 4, 4, 4);
@@ -149,94 +280,75 @@ public class Lab4Panel extends JPanel {
         tgtVoiceField.setEditable(false);
 
         int row = 0;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.weightx = 0;
-        controls.add(new JLabel("Исходный голос (source):"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        controls.add(new JLabel("Source (ваш голос):"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
         controls.add(srcVoiceField, gbc);
         JButton srcBtn = new JButton("WAV…");
         srcBtn.addActionListener(e -> chooseOpenPath(srcVoiceField));
-        gbc.gridx = 2;
-        gbc.weightx = 0;
+        gbc.gridx = 2; gbc.weightx = 0;
         controls.add(srcBtn, gbc);
 
         row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        controls.add(new JLabel("Целевой голос (target):"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+        gbc.gridx = 0; gbc.gridy = row;
+        controls.add(new JLabel("Target (целевой голос):"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
         controls.add(tgtVoiceField, gbc);
         JButton tgtBtn = new JButton("WAV…");
         tgtBtn.addActionListener(e -> chooseOpenPath(tgtVoiceField));
-        gbc.gridx = 2;
-        gbc.weightx = 0;
+        gbc.gridx = 2; gbc.weightx = 0;
         controls.add(tgtBtn, gbc);
 
         row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        controls.add(new JLabel("Модель:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        controls.add(modelCombo, gbc);
+        gbc.gridx = 0; gbc.gridy = row;
+        controls.add(new JLabel("Дообученный вокодер (.pt):"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1;
+        controls.add(vocoderCkptField, gbc);
+        JButton ckptBtn = new JButton("Файл…");
+        ckptBtn.addActionListener(e -> chooseOpenPath(vocoderCkptField));
+        gbc.gridx = 2; gbc.weightx = 0;
+        controls.add(ckptBtn, gbc);
 
         row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        controls.add(new JLabel("Команда CosyVoice VC:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        gbc.gridwidth = 2;
-        controls.add(cosyVcCommandField, gbc);
-        gbc.gridwidth = 1;
-
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
+        gbc.gridx = 0; gbc.gridy = row;
         controls.add(new JLabel("Команда kNN-VC:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
-        gbc.gridwidth = 2;
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
         controls.add(knnVcCommandField, gbc);
         gbc.gridwidth = 1;
 
         row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
+        gbc.gridx = 0; gbc.gridy = row;
         controls.add(new JLabel("Выходной WAV:"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+        gbc.gridx = 1; gbc.weightx = 1;
         controls.add(vcOutField, gbc);
         JButton outBtn = new JButton("Сохранить как…");
         outBtn.addActionListener(e -> chooseSavePath(vcOutField));
-        gbc.gridx = 2;
-        gbc.weightx = 0;
+        gbc.gridx = 2; gbc.weightx = 0;
         controls.add(outBtn, gbc);
 
         row++;
-        JButton runVcBtn = new JButton("Сконвертировать голос");
-        runVcBtn.addActionListener(e -> runSingleVoiceConversion());
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.gridwidth = 3;
-        controls.add(runVcBtn, gbc);
+        JButton runBtn = new JButton("Сконвертировать голос (kNN-VC)");
+        runBtn.addActionListener(e -> runKnnVc());
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 3;
+        controls.add(runBtn, gbc);
 
         panel.add(controls, BorderLayout.NORTH);
-        panel.add(new JScrollPane(createDescriptionArea(
-                """
-                        Что делает вкладка:
-                        - Запускает внешний пайплайн VC для выбранной модели.
-                        - Измеряет время выполнения и добавляет результат в таблицу экспериментов.
-                        - Считает прокси-метрики:
-                          * схожесть с target (приближение качества переноса тембра),
-                          * схожесть с source (приближение сохранения содержания/ритма).
-                        Шаблоны команд: {src}, {tgt}, {out}.
-                        """)), BorderLayout.CENTER);
+        panel.add(new JScrollPane(createDescriptionArea("""
+                Использует официальный проект bshall/knn-vc через torch.hub:
+                WavLM-Large (slой 6) кодирует source и target, kNN-сопоставление
+                по топ-4 ближайших target-векторов, синтез HiFi-GAN-вокодером.
+                Слова и язык source сохраняются — kNN-VC работает на акустических
+                фичах, а не на фонемах.
+                Поле "Дообученный вокодер" опциональное: указывайте путь к
+                finetuned_model.pt из python\\lab4_finetune_colab.ipynb.
+                Шаблоны команды: {src}, {tgt}, {out}, {vocoder_ckpt}.
+                """)), BorderLayout.CENTER);
         return panel;
     }
+
+    // ===================================================================
+    //  Experiments tab
+    // ===================================================================
 
     private JPanel buildExperimentsTab() {
         JPanel panel = new JPanel(new BorderLayout(8, 8));
@@ -250,27 +362,76 @@ public class Lab4Panel extends JPanel {
         gbc.insets = new Insets(4, 4, 4, 4);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 0;
+        srcTextForCompare.setLineWrap(true);
+        srcTextForCompare.setWrapStyleWord(true);
+        tgtTextForCompare.setLineWrap(true);
+        tgtTextForCompare.setWrapStyleWord(true);
+
+        int row = 0;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
         top.add(new JLabel("Длины ref (сек, через запятую):"), gbc);
-        gbc.gridx = 1;
-        gbc.weightx = 1;
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
         top.add(minLenField, gbc);
+        gbc.gridwidth = 1;
 
-        JButton minLenBtn = new JButton("Эксперимент min-length для выбранной модели");
+        row++;
+        JButton minLenBtn = new JButton("Эксперимент min-length (kNN-VC)");
         minLenBtn.addActionListener(e -> runMinLengthExperiment());
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 3;
         top.add(minLenBtn, gbc);
+        gbc.gridwidth = 1;
 
-        JButton compareBtn = new JButton("Сравнить CosyVoice3 vs kNN-VC");
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        top.add(new JLabel("Текст source (для CosyVoice):"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
+        JScrollPane srcTextScroll = new JScrollPane(srcTextForCompare);
+        srcTextScroll.setPreferredSize(new Dimension(300, 50));
+        top.add(srcTextScroll, gbc);
+        gbc.gridwidth = 1;
+
+        row++;
+        gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0;
+        top.add(new JLabel("Текст target (для CosyVoice):"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
+        JScrollPane tgtTextScroll = new JScrollPane(tgtTextForCompare);
+        tgtTextScroll.setPreferredSize(new Dimension(300, 50));
+        top.add(tgtTextScroll, gbc);
+        gbc.gridwidth = 1;
+
+        row++;
+        gbc.gridx = 0; gbc.gridy = row;
+        top.add(new JLabel("Команда CosyVoice zero-shot VC:"), gbc);
+        gbc.gridx = 1; gbc.weightx = 1; gbc.gridwidth = 2;
+        top.add(cosyVcCommandField, gbc);
+        gbc.gridwidth = 1;
+
+        row++;
+        JButton compareBtn = new JButton("Сравнить CosyVoice zero-shot vs kNN-VC");
         compareBtn.addActionListener(e -> runCompareModelsExperiment());
-        gbc.gridy = 2;
+        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 3;
         top.add(compareBtn, gbc);
 
+        experimentFilesArea.setEditable(false);
+        experimentFilesArea.setLineWrap(true);
+        experimentFilesArea.setWrapStyleWord(true);
+        experimentFilesArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        experimentFilesArea.setBackground(ChartUtils.CREAM);
+        experimentFilesArea.setBorder(BorderFactory.createTitledBorder("Файлы, которые участвуют в обработке и расчете метрик"));
+        refreshExperimentFilesInfo();
+
         JTable table = new JTable(experimentsModel);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.getColumnModel().getColumn(0).setPreferredWidth(110);
+        table.getColumnModel().getColumn(1).setPreferredWidth(150);
+        table.getColumnModel().getColumn(2).setPreferredWidth(260);
+        table.getColumnModel().getColumn(3).setPreferredWidth(260);
+        table.getColumnModel().getColumn(4).setPreferredWidth(260);
+        table.getColumnModel().getColumn(5).setPreferredWidth(90);
+        table.getColumnModel().getColumn(6).setPreferredWidth(80);
+        table.getColumnModel().getColumn(7).setPreferredWidth(120);
+        table.getColumnModel().getColumn(8).setPreferredWidth(120);
+        table.getColumnModel().getColumn(9).setPreferredWidth(300);
         JScrollPane tableScroll = new JScrollPane(table);
         tableScroll.setBorder(BorderFactory.createTitledBorder("Результаты экспериментов"));
 
@@ -287,57 +448,14 @@ public class Lab4Panel extends JPanel {
         split.setBorder(null);
 
         panel.add(top, BorderLayout.NORTH);
+        panel.add(experimentFilesArea, BorderLayout.SOUTH);
         panel.add(split, BorderLayout.CENTER);
         return panel;
     }
 
-    private JPanel buildReportTab() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
-        panel.setBackground(ChartUtils.LIGHT_BEIGE);
-
-        reportArea.setEditable(true);
-        reportArea.setLineWrap(true);
-        reportArea.setWrapStyleWord(true);
-        reportArea.setFont(new Font("Consolas", Font.PLAIN, 12));
-        reportArea.setBackground(ChartUtils.CREAM);
-        reportArea.setText("""
-                Шаблон отчета ЛР №4
-
-                1) Озвучивание текста (CosyVoice3)
-                   - Входной текст:
-                   - Команда/конфиг:
-                   - Качество результата (MOS субъективно):
-
-                2) Преобразование голоса (kNN-VC / CosyVoice)
-                   - Source:
-                   - Target:
-                   - Модель:
-                   - Наблюдения по качеству:
-
-                2.1) Дообучение вокодера
-                   - Среда (например, Colab):
-                   - Параметры обучения:
-                   - Изменение качества:
-
-                2.2) Работа при ограниченных ресурсах
-                   - Время выполнения:
-                   - Ограничения:
-                   - Вывод:
-
-                2.3) Минимальная длина reference
-                   - Тестовые длины:
-                   - Минимально приемлемая длина:
-
-                2.4) Сравнение CosyVoice3 и kNN-VC
-                   - Сложность запуска:
-                   - Качество голоса:
-                   - Сохранение содержания:
-                   - Финальный вывод:
-                """);
-
-        panel.add(new JScrollPane(reportArea), BorderLayout.CENTER);
-        return panel;
-    }
+    // ===================================================================
+    //  Helpers
+    // ===================================================================
 
     private JTextArea createDescriptionArea(String text) {
         JTextArea area = new JTextArea(text);
@@ -353,13 +471,8 @@ public class Lab4Panel extends JPanel {
         return Paths.get(System.getProperty("user.home", ".")).resolve(LAB_ROOT_DIR_NAME);
     }
 
-    private Path outputsDir() {
-        return labRoot().resolve("outputs");
-    }
-
-    private Path tempDir() {
-        return labRoot().resolve("temp");
-    }
+    private Path outputsDir() { return labRoot().resolve("outputs"); }
+    private Path tempDir() { return labRoot().resolve("temp"); }
 
     private void ensureLabDirs() throws IOException {
         Files.createDirectories(outputsDir());
@@ -383,54 +496,104 @@ public class Lab4Panel extends JPanel {
         return LocalDateTime.now().format(TS_FORMAT);
     }
 
-    private void runTts() {
-        String text = ttsTextArea.getText().trim();
-        if (text.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Введите текст для синтеза.");
-            return;
-        }
-        String template = ttsCommandField.getText().trim();
-        if (template.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Укажите команду TTS.");
-            return;
-        }
+    private void refreshExperimentFilesInfo() {
+        String src = srcVoiceField.getText().trim();
+        String tgt = tgtVoiceField.getText().trim();
+        experimentFilesArea.setText("""
+                Source WAV для обработки и метрики "схожесть с source":
+                %s
 
-        String outPath = ttsOutField.getText().trim();
+                Target WAV по умолчанию для обработки и метрики "схожесть с target":
+                %s
+
+                В эксперименте min-length для обработки создается отдельный короткий ref-файл,
+                а метрики считаются относительно полного target WAV.
+                """.formatted(displayPath(src), displayPath(tgt)));
+    }
+
+    private String displayPath(String path) {
+        return path == null || path.isBlank() ? "не выбран" : path;
+    }
+
+    // ===================================================================
+    //  TTS handlers
+    // ===================================================================
+
+    private void runTtsSft() {
+        String text = sftTextArea.getText().trim();
+        if (text.isEmpty()) { showError("Введите текст для синтеза."); return; }
+        String speaker = (String) sftSpeakerCombo.getSelectedItem();
+        if (speaker == null || speaker.isBlank()) { showError("Выберите голос."); return; }
+
+        String outPath = sftOutField.getText().trim();
         if (outPath.isEmpty()) {
             try {
                 ensureLabDirs();
-                outPath = outputsDir().resolve("tts_" + timestampNow() + ".wav").toString();
-                ttsOutField.setText(outPath);
+                outPath = outputsDir().resolve("tts_sft_" + timestampNow() + ".wav").toString();
+                sftOutField.setText(outPath);
             } catch (IOException ex) {
-                showError("Не удалось создать директории лабораторной: " + ex.getMessage());
+                showError("Не удалось создать директорию: " + ex.getMessage());
                 return;
             }
         }
 
-        String command = template
+        String command = sftCommandField.getText().trim()
                 .replace("{text}", escapeForQuotedArg(text))
+                .replace("{speaker}", speaker)
                 .replace("{out}", outPath);
-        final String finalOutPath = outPath;
 
-        appendLog("TTS запуск: " + command);
-        runCommandAsync("TTS", command, finalOutPath, () -> {
-            appendLog("TTS готово: " + finalOutPath);
-            appendLog("Добавьте субъективную оценку MOS в вкладке Отчет.");
+        final String finalOutPath = outPath;
+        appendLog("TTS-SFT запуск: " + command);
+        runCommandAsync("TTS-SFT", command, finalOutPath, () -> {
+            appendLog("TTS-SFT готово: " + finalOutPath);
+            appendLog("Субъективную оценку MOS можно занести в свой отчет по результату.");
         });
     }
 
-    private void runSingleVoiceConversion() {
-        String src = srcVoiceField.getText().trim();
-        String tgt = tgtVoiceField.getText().trim();
-        if (src.isEmpty() || tgt.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Выберите source и target WAV.");
+    private void runTtsZeroShot() {
+        String text = zsTextArea.getText().trim();
+        String promptAudio = zsPromptAudioField.getText().trim();
+        String promptText = zsPromptTextArea.getText().trim();
+        if (text.isEmpty() || promptAudio.isEmpty() || promptText.isEmpty()) {
+            showError("Заполните все три поля: текст для синтеза, эталонное аудио, текст эталона.");
             return;
         }
 
-        String model = selectedModel();
-        String template = model.equals("CosyVoice3") ? cosyVcCommandField.getText().trim() : knnVcCommandField.getText().trim();
-        if (template.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Не заполнена команда для выбранной модели.");
+        String outPath = zsOutField.getText().trim();
+        if (outPath.isEmpty()) {
+            try {
+                ensureLabDirs();
+                outPath = outputsDir().resolve("tts_zs_" + timestampNow() + ".wav").toString();
+                zsOutField.setText(outPath);
+            } catch (IOException ex) {
+                showError("Не удалось создать директорию: " + ex.getMessage());
+                return;
+            }
+        }
+
+        String command = zsCommandField.getText().trim()
+                .replace("{text}", escapeForQuotedArg(text))
+                .replace("{prompt_audio}", promptAudio)
+                .replace("{prompt_text}", escapeForQuotedArg(promptText))
+                .replace("{out}", outPath);
+
+        final String finalOutPath = outPath;
+        appendLog("TTS Zero-Shot запуск: " + command);
+        runCommandAsync("TTS Zero-Shot", command, finalOutPath, () -> {
+            appendLog("TTS Zero-Shot готово: " + finalOutPath);
+            appendLog("Субъективную оценку MOS можно занести в свой отчет по результату.");
+        });
+    }
+
+    // ===================================================================
+    //  VC handlers
+    // ===================================================================
+
+    private void runKnnVc() {
+        String src = srcVoiceField.getText().trim();
+        String tgt = tgtVoiceField.getText().trim();
+        if (src.isEmpty() || tgt.isEmpty()) {
+            showError("Выберите source и target WAV.");
             return;
         }
 
@@ -438,43 +601,59 @@ public class Lab4Panel extends JPanel {
         if (out.isEmpty()) {
             try {
                 ensureLabDirs();
-                out = outputsDir().resolve(modelTag(model) + "_vc_" + timestampNow() + ".wav").toString();
+                out = outputsDir().resolve("knn_vc_" + timestampNow() + ".wav").toString();
                 vcOutField.setText(out);
             } catch (IOException ex) {
-                showError("Не удалось создать директории лабораторной: " + ex.getMessage());
+                showError("Не удалось создать директорию: " + ex.getMessage());
                 return;
             }
         }
 
-        String command = renderVcCommand(template, src, tgt, out, null);
+        String command = renderKnnCommand(knnVcCommandField.getText().trim(), src, tgt, out, null);
         long started = System.nanoTime();
-        appendLog(model + " VC запуск: " + command);
-        final String modelFinal = model;
+        appendLog("kNN-VC запуск: " + command);
         final String outFinal = out;
-        runCommandAsync(model + " VC", command, out, () -> {
+        runCommandAsync("kNN-VC", command, out, () -> {
             double secs = (System.nanoTime() - started) / 1_000_000_000.0;
-            addEvaluationRow("single", modelFinal, null, secs, src, tgt, outFinal);
+            addEvaluationRow("single", "kNN-VC", src, tgt, tgt, null, secs, outFinal);
         });
     }
+
+    private String renderKnnCommand(String template, String src, String tgt, String out, Double lenSec) {
+        String ckpt = vocoderCkptField.getText().trim();
+        String command = template
+                .replace("{src}", src)
+                .replace("{tgt}", tgt)
+                .replace("{out}", out);
+        if (!command.contains("--vocoder-ckpt") && !ckpt.isEmpty()) {
+            command = command + " --vocoder-ckpt \"" + ckpt + "\"";
+        } else {
+            command = command.replace("{vocoder_ckpt}", ckpt);
+        }
+        if (lenSec != null && lenSec > 0) {
+            command = command + " --len-sec " + String.format(Locale.US, "%.3f", lenSec);
+        }
+        return command;
+    }
+
+    // ===================================================================
+    //  Experiments
+    // ===================================================================
 
     private void runMinLengthExperiment() {
         String src = srcVoiceField.getText().trim();
         String tgt = tgtVoiceField.getText().trim();
         if (src.isEmpty() || tgt.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Выберите source и target WAV.");
+            showError("Выберите source и target WAV на вкладке П.2 VC.");
             return;
         }
         List<Double> lengths = parseLengthList(minLenField.getText());
         if (lengths.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Введите корректные длины, например: 1,2,3,5");
+            showError("Введите корректные длины, например: 1,2,3,5");
             return;
         }
-        String model = selectedModel();
-        String template = model.equals("CosyVoice3") ? cosyVcCommandField.getText().trim() : knnVcCommandField.getText().trim();
-        if (template.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Не заполнена команда для выбранной модели.");
-            return;
-        }
+        refreshExperimentFilesInfo();
+        String template = knnVcCommandField.getText().trim();
 
         SwingWorker<Void, String> worker = new SwingWorker<>() {
             @Override
@@ -484,14 +663,15 @@ public class Lab4Panel extends JPanel {
                     AudioIOUtils.AudioData tgtData = AudioIOUtils.readMonoWav(new File(tgt));
                     for (double lenSec : lengths) {
                         if (lenSec <= 0.0) continue;
-                        String tag = modelTag(model) + "_len" + lenSec;
+                        String tag = "knn_len" + lenSec;
                         Path shortRefPath = tempDir().resolve(tag + "_ref.wav");
                         Path outPath = outputsDir().resolve(tag + "_" + timestampNow() + ".wav");
 
                         double[] trimmed = trimToSeconds(tgtData.samples(), tgtData.sampleRate(), lenSec);
                         AudioIOUtils.writeMonoWav(shortRefPath.toFile(), trimmed, tgtData.sampleRate());
 
-                        String command = renderVcCommand(template, src, shortRefPath.toString(), outPath.toString(), lenSec);
+                        String command = renderKnnCommand(template, src, shortRefPath.toString(),
+                                outPath.toString(), lenSec);
                         long started = System.nanoTime();
                         publish("min-length: запуск " + command);
                         ExecResult result = runCommand(command);
@@ -505,7 +685,8 @@ public class Lab4Panel extends JPanel {
                         }
                         double secs = (System.nanoTime() - started) / 1_000_000_000.0;
                         SwingUtilities.invokeLater(() ->
-                                addEvaluationRow("min-length", model, lenSec, secs, src, tgt, outPath.toString()));
+                                addEvaluationRow("min-length", "kNN-VC", src, shortRefPath.toString(), tgt,
+                                        lenSec, secs, outPath.toString()));
                     }
                 } catch (Exception ex) {
                     publish("min-length: исключение: " + ex.getMessage());
@@ -525,31 +706,41 @@ public class Lab4Panel extends JPanel {
         String src = srcVoiceField.getText().trim();
         String tgt = tgtVoiceField.getText().trim();
         if (src.isEmpty() || tgt.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Выберите source и target WAV.");
+            showError("Выберите source и target WAV на вкладке П.2 VC.");
             return;
         }
-        String cosyTemplate = cosyVcCommandField.getText().trim();
-        String knnTemplate = knnVcCommandField.getText().trim();
-        if (cosyTemplate.isEmpty() || knnTemplate.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Заполните команды для обеих моделей.");
+        String srcText = srcTextForCompare.getText().trim();
+        String tgtText = tgtTextForCompare.getText().trim();
+        if (srcText.isEmpty() || tgtText.isEmpty()) {
+            showError("Введите тексты source и target — они нужны CosyVoice zero-shot.");
             return;
         }
+        refreshExperimentFilesInfo();
 
         SwingWorker<Void, String> worker = new SwingWorker<>() {
             @Override
             protected Void doInBackground() {
                 try {
                     ensureLabDirs();
-                    runModelCompare("CosyVoice3", cosyTemplate, src, tgt, publishSink());
-                    runModelCompare("kNN-VC", knnTemplate, src, tgt, publishSink());
+                    Path knnOut = outputsDir().resolve("cmp_knn_" + timestampNow() + ".wav");
+                    runOneCompare("kNN-VC",
+                            renderKnnCommand(knnVcCommandField.getText().trim(), src, tgt,
+                                    knnOut.toString(), null),
+                            knnOut,
+                            src, tgt, this::publish);
+
+                    String cosyOut = outputsDir().resolve("cmp_cosy_" + timestampNow() + ".wav").toString();
+                    String cosyCommand = cosyVcCommandField.getText().trim()
+                            .replace("{src}", src)
+                            .replace("{tgt}", tgt)
+                            .replace("{src_text}", escapeForQuotedArg(srcText))
+                            .replace("{tgt_text}", escapeForQuotedArg(tgtText))
+                            .replace("{out}", cosyOut);
+                    runOneCompare("CosyVoice zero-shot", cosyCommand, Path.of(cosyOut), src, tgt, this::publish);
                 } catch (Exception ex) {
                     publish("compare: исключение: " + ex.getMessage());
                 }
                 return null;
-            }
-
-            private java.util.function.Consumer<String> publishSink() {
-                return this::publish;
             }
 
             @Override
@@ -560,9 +751,9 @@ public class Lab4Panel extends JPanel {
         worker.execute();
     }
 
-    private void runModelCompare(String model, String template, String src, String tgt, java.util.function.Consumer<String> logSink) {
-        Path outPath = outputsDir().resolve(modelTag(model) + "_compare_" + timestampNow() + ".wav");
-        String command = renderVcCommand(template, src, tgt, outPath.toString(), null);
+    private void runOneCompare(String model, String command, Path outPath,
+                               String src, String tgt,
+                               java.util.function.Consumer<String> logSink) {
         long started = System.nanoTime();
         logSink.accept("compare " + model + ": " + command);
         ExecResult result = runCommand(command);
@@ -576,30 +767,18 @@ public class Lab4Panel extends JPanel {
         }
         double secs = (System.nanoTime() - started) / 1_000_000_000.0;
         SwingUtilities.invokeLater(() ->
-                addEvaluationRow("compare", model, null, secs, src, tgt, outPath.toString()));
+                addEvaluationRow("compare", model, src, tgt, tgt, null, secs, outPath.toString()));
     }
 
-    private String renderVcCommand(String template, String src, String tgt, String out, Double lenSec) {
-        String command = template
-                .replace("{src}", src)
-                .replace("{tgt}", tgt)
-                .replace("{out}", out)
-                .replace("{model}", selectedModel());
-        if (lenSec != null && lenSec > 0) {
-            command = command + " --len-sec " + String.format(Locale.US, "%.3f", lenSec);
-        }
-        return command;
-    }
+    // ===================================================================
+    //  Evaluation / metrics
+    // ===================================================================
 
-    private String selectedModel() {
-        return (String) modelCombo.getSelectedItem();
-    }
-
-    private void addEvaluationRow(String experiment, String model, Double refLenSec, double runtimeSec,
-                                  String srcPath, String tgtPath, String outPath) {
+    private void addEvaluationRow(String experiment, String model, String srcPath, String processingRefPath,
+                                  String metricsTargetPath, Double refLenSec, double runtimeSec, String outPath) {
         try {
             AudioIOUtils.AudioData src = AudioIOUtils.readMonoWav(new File(srcPath));
-            AudioIOUtils.AudioData tgt = AudioIOUtils.readMonoWav(new File(tgtPath));
+            AudioIOUtils.AudioData tgt = AudioIOUtils.readMonoWav(new File(metricsTargetPath));
             AudioIOUtils.AudioData out = AudioIOUtils.readMonoWav(new File(outPath));
 
             double simToTarget = similarityProxy(out.samples(), out.sampleRate(), tgt.samples(), tgt.sampleRate());
@@ -608,6 +787,9 @@ public class Lab4Panel extends JPanel {
             experimentsModel.addRow(new Object[]{
                     experiment,
                     model,
+                    srcPath,
+                    processingRefPath,
+                    metricsTargetPath,
                     refLenSec == null ? "—" : formatDouble(refLenSec),
                     formatDouble(runtimeSec),
                     formatDouble(simToTarget),
@@ -615,8 +797,8 @@ public class Lab4Panel extends JPanel {
                     outPath
             });
             appendLog(String.format(Locale.US,
-                    "%s/%s: готово. target=%.3f source=%.3f time=%.3fs",
-                    experiment, model, simToTarget, simToSource, runtimeSec));
+                    "%s/%s: готово. обработка ref=%s; метрики target=%s; target=%.3f source=%.3f time=%.3fs",
+                    experiment, model, processingRefPath, metricsTargetPath, simToTarget, simToSource, runtimeSec));
         } catch (UnsupportedAudioFileException | IOException ex) {
             appendLog("Не удалось оценить результат " + outPath + ": " + ex.getMessage());
         }
@@ -696,6 +878,10 @@ public class Lab4Panel extends JPanel {
         return dot / Math.sqrt(na * nb);
     }
 
+    // ===================================================================
+    //  Process execution
+    // ===================================================================
+
     private void runCommandAsync(String name, String command, String expectedWavPath, Runnable onSuccess) {
         SwingWorker<Void, String> worker = new SwingWorker<>() {
             @Override
@@ -745,10 +931,6 @@ public class Lab4Panel extends JPanel {
 
     private String formatDouble(double value) {
         return String.format(Locale.US, "%.3f", value);
-    }
-
-    private String modelTag(String model) {
-        return model.toLowerCase(Locale.ROOT).contains("knn") ? "knn" : "cosy";
     }
 
     private void appendLog(String text) {

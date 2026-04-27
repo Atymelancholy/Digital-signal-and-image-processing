@@ -1,0 +1,9 @@
+1 владка
+Hello, this is the CosyVoice synthesizer running on a fine-tuned 300M model.
+
+2 вкладка
+текст для озвучки
+I want your ugly, I want your disease I want your everything as long as its free
+
+текст целевого голоса
+To be honest, I like bitter coffee in the morning more than you. To be honest, I like harsh autumn more than you. To be honest, I like harsh autumn more than you
